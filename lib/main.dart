@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:sem4_fe/ui/login/Login.dart';
 
-void main() => runApp(const MyApp());
+void main() {
+  runApp(MaterialApp(
+      home: LoginScreen(
+        onLogin: (String username, String password) async {
+        print('Username: $username, Password: $password');
+      },
+      )
+  ));
+}
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
-
-  // Hàm xử lý đăng nhập (bạn sẽ đổi thành gọi API thực tế)
-  Future<void> _handleLogin(String username, String password) async {
-    // TODO: Gọi API, Firebase Auth, v.v.
-    debugPrint('Username: $username, Password: $password');
-  }
+class ContentApp extends StatelessWidget {
+  const ContentApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    // TODO: implement build
-    throw UnimplementedError();
+  Widget build(BuildContext context){
+    return const Placeholder();
   }
-
+}
