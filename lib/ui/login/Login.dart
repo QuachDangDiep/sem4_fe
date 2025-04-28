@@ -1,227 +1,173 @@
 import 'package:flutter/material.dart';
-import 'package:google_sign_in/google_sign_in.dart';
-import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key, required this.onLogin});
-  final Future<void> Function(String username, String password) onLogin;
+  final void Function(String username, String password)? onLogin;
+
+  const LoginScreen({super.key, this.onLogin});
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _usernameCtrl = TextEditingController();
-  final _pwCtrl = TextEditingController();
-  bool _obscure = true;
-  bool _loading = false;
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _storage = const FlutterSecureStorage();
 
-  Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
-    setState(() => _loading = true);
-    try {
-      await widget.onLogin(
-        _usernameCtrl.text.trim(),
-        _pwCtrl.text.trim(),
-      );
-      if (mounted) Navigator.pushReplacementNamed(context, '/home');
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString())),
-      );
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
-  Future<void> _signInWithGoogle() async {
-    try {
-      final GoogleSignIn googleSignIn = GoogleSignIn();
-      final account = await googleSignIn.signIn();
-      if (account != null) {
-        // Nếu đăng nhập thành công
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/home');
-        }
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Google sign-in failed: $e')),
-      );
-    }
-  }
-
-  Future<void> _signInWithFacebook() async {
-    try {
-      final result = await FacebookAuth.instance.login();
-      if (result.status == LoginStatus.success) {
-        // Nếu đăng nhập thành công
-        if (mounted) {
-          Navigator.pushReplacementNamed(context, '/home');
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Facebook sign-in failed')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Facebook sign-in error: $e')),
-      );
-    }
-  }
-
-  // Define _socialButton method
-  Widget _socialButton(String imagePath, String label, VoidCallback onPressed) {
-    return SizedBox(
-      width: 180,
-      height: 60,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: Color(0xFFE6CAE4)),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Image.asset(
-              imagePath,
-              height: 24,
-            ),
-            const SizedBox(width: 8),
-            Text(label),
-          ],
-        ),
-      ),
-    );
-  }
+  bool _isLoading = false;
+  String _errorMessage = '';
 
   @override
-  void dispose() {
-    _usernameCtrl.dispose();
-    _pwCtrl.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _checkTokenValid();
+  }
+
+  Future<void> _checkTokenValid() async {
+    final token = await _storage.read(key: 'auth_token');
+    if (token != null && token.isNotEmpty) {
+      // Nếu đã có token thì chuyển thẳng vào HomeScreen
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => HomeScreen(username: "User", token: token),
+        ),
+      );
+    }
+  }
+
+  Future<void> _login() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+
+    if (username.isEmpty || password.isEmpty) {
+      setState(() {
+        _errorMessage = "Vui lòng nhập đầy đủ thông tin.";
+      });
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = '';
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse('http://10.0.2.2:8080/api/auth/login'),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "username": username,
+          "password": password,
+        }),
+      );
+
+      final responseData = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && responseData['success'] == true) {
+        final token = responseData['result']['token'];
+        final user = responseData['result']['username'];
+
+        if (token != null) {
+          await _storage.write(key: 'auth_token', value: token);
+
+          widget.onLogin?.call(username, password); // Nếu có truyền vào thì gọi
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => HomeScreen(username: user, token: token),
+            ),
+          );
+        } else {
+          setState(() {
+            _errorMessage = 'Không nhận được token từ server.';
+          });
+        }
+      } else {
+        setState(() {
+          _errorMessage = responseData['message'] ?? 'Đăng nhập thất bại.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Lỗi hệ thống: ${e.toString()}';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset('assets/anh.png', height: 120),
-                const SizedBox(height: 20),
-                const Text(
-                  'Ứng dụng chấm công',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: _usernameCtrl,
-                  validator: (value) =>
-                  value == null || value.isEmpty ? 'Enter your username' : null,
-                  decoration: InputDecoration(
-                    labelText: 'User Name',
-                    labelStyle: TextStyle(color: Color(0xFF8D8484), fontSize: 15),  // Màu chữ label
-                    hintStyle: TextStyle(color: Color(0xFF8D8484), fontSize: 15),   // Màu chữ hint
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),  // Bo góc 20
-                      borderSide: BorderSide(color: Color(0xFF8D8484)),  // Màu border
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide(color: Color(0xFF8D8484)),  // Màu border khi focus
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _pwCtrl,
-                  obscureText: _obscure,
-                  validator: (value) =>
-                  value == null || value.isEmpty ? 'Enter your password' : null,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    labelStyle: TextStyle(color: Color(0xFF8D8484), fontSize: 15),  // Màu chữ label
-                    hintStyle: TextStyle(color: Color(0xFF8D8484), fontSize: 15),   // Màu chữ hint
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),  // Bo góc 20
-                      borderSide: BorderSide(color: Color(0xFF8D8484)),  // Màu border
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(20),
-                      borderSide: BorderSide(color: Color(0xFF8D8484)),  // Màu border khi focus
-                    ),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscure ? Icons.visibility : Icons.visibility_off,
-                        color: Color(0xFF8D8484),  // Màu icon
-                      ),
-                      onPressed: () => setState(() => _obscure = !_obscure),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                // Row(
-                //   children: [
-                //     const Text("You do not have an account, please "),
-                //     GestureDetector(
-                //       onTap: () {
-                //         // Chuyển tới màn đăng ký
-                //       },
-                //       child: const Text(
-                //         "register",
-                //         style: TextStyle(color: Colors.blue),
-                //       ),
-                //     )
-                //   ],
-                // ),
-                // const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2424E6),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(20)),
-                    ),
-                    onPressed: _loading ? null : _submit,
-                    child: _loading
-                        ? const CircularProgressIndicator(color: Colors.white)
-                        : const Text(
-                      'Xác Nhận',
-                      style: TextStyle(color: Colors.white, fontSize: 15),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    _socialButton(
-                        'assets/google.png', 'Google', _signInWithGoogle),
-                    _socialButton(
-                        'assets/facebook.png', 'Facebook', _signInWithFacebook),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  "Trợ giúp",
-                  style: TextStyle(color: Colors.blue),
-                ),
-              ],
+      appBar: AppBar(title: const Text('Đăng nhập')),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          children: [
+            TextField(
+              controller: _usernameController,
+              decoration: const InputDecoration(
+                labelText: 'Tên đăng nhập',
+                border: OutlineInputBorder(),
+              ),
             ),
-          ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _passwordController,
+              obscureText: true,
+              decoration: const InputDecoration(
+                labelText: 'Mật khẩu',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 24),
+            _isLoading
+                ? const CircularProgressIndicator()
+                : SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _login,
+                child: const Text('ĐĂNG NHẬP'),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_errorMessage.isNotEmpty)
+              Text(
+                _errorMessage,
+                style: const TextStyle(color: Colors.red),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class HomeScreen extends StatelessWidget {
+  final String username;
+  final String token;
+
+  const HomeScreen({super.key, required this.username, required this.token});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Trang chủ')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Xin chào, $username!'),
+            const SizedBox(height: 10),
+            Text('Token: ${token.substring(0, 10)}...'),
+          ],
         ),
       ),
     );
