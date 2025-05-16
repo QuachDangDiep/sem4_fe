@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:sem4_fe/ui/login/Login.dart'; // Đảm bảo đúng đường dẫn đến màn Login của bạn
 
 class ResetPasswordScreen extends StatefulWidget {
   final String email;
@@ -18,10 +17,12 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   bool _isLoading = false;
   String _errorMessage = '';
 
+  // Function to handle reset password
   Future<void> _resetPassword() async {
     final newPassword = _passwordController.text.trim();
     final confirmPassword = _confirmPasswordController.text.trim();
 
+    // Validation check
     if (newPassword.isEmpty || confirmPassword.isEmpty) {
       setState(() {
         _errorMessage = 'Vui lòng nhập đầy đủ mật khẩu mới và xác nhận mật khẩu.';
@@ -49,7 +50,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'newPassword': newPassword,
-          'confirmPassword': confirmPassword,
+          'confirmPassword': confirmPassword
         }),
       );
 
@@ -59,14 +60,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Đổi mật khẩu thành công')),
         );
-
-        // Chờ 1 giây để hiển thị SnackBar rồi chuyển màn hình
-        await Future.delayed(const Duration(seconds: 1));
-
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginScreen()),
-        );
+        Navigator.pushReplacementNamed(context, '/login');
       } else {
         setState(() {
           _errorMessage = responseData['message'] ?? 'Đổi mật khẩu thất bại.';
@@ -103,7 +97,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
               'Nhập mật khẩu mới cho tài khoản:',
               style: TextStyle(fontSize: 16),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 12),
             Text(
               widget.email,
               style: const TextStyle(fontWeight: FontWeight.bold),
@@ -128,10 +122,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             ),
             const SizedBox(height: 20),
             if (_errorMessage.isNotEmpty)
-              Text(
-                _errorMessage,
-                style: const TextStyle(color: Colors.red),
-              ),
+              Text(_errorMessage, style: const TextStyle(color: Colors.red)),
             const SizedBox(height: 10),
             _isLoading
                 ? const Center(child: CircularProgressIndicator())
