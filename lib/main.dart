@@ -13,10 +13,12 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Login App',
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: false, // ✅ This is the correct place
+      ),
       home: LoginScreen(
         onLogin: (username, password) {
           print('Login attempted with: $username, $password');
-          // Bạn có thể xử lý riêng gì thêm ở đây nếu muốn.
         },
       ),
     );

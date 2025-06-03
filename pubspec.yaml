@@ -10,14 +10,21 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-
+  http: ^1.2.0
+  intl: ^0.18.1
+  qr_flutter: ^4.0.0
+  mobile_scanner: ^3.5.1
+  jwt_decoder: ^2.0.1
+  fl_chart: ^0.63.0
+#  face_camera: ^0.1.4
   # Thêm package kiểm tra email
-  email_validator: ^2.1.17
+  email_validator: ^3.0.0
 
   # Font biểu tượng iOS
   cupertino_icons: ^1.0.8
   google_sign_in: ^6.1.0
-  flutter_facebook_auth: ^6.0.3
+  flutter_facebook_auth: ^7.1.1
+
 
 dev_dependencies:
   flutter_test:
@@ -31,3 +38,5 @@ flutter:
     - assets/google.png
     - assets/facebook.png
     - assets/anh.png
+    - assets/hr.png
+    - assets/avatar.jpg

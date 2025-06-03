@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'Register.dart';
-import 'package:sem4_fe/ui/home/Homeuser.dart';
+import 'package:sem4_fe/ui/User/Homeuser/Homeuser.dart';
+import 'package:sem4_fe/Service/Constants.dart';
 import 'package:sem4_fe/ui/login/screens/send_otp_screen.dart';
+import 'package:sem4_fe/ui/hr//home/HomeHr.dart';
 
 class LoginScreen extends StatefulWidget {
   final Function(String username, String password)? onLogin;
@@ -17,7 +18,10 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+
   bool _isLoading = false;
+  bool _rememberMe = false;
+  bool _obscurePassword = true;
 
   Future<void> _login() async {
     final username = _usernameController.text.trim();
@@ -30,41 +34,53 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    setState(() {
-      _isLoading = true;
-    });
+    setState(() => _isLoading = true);
 
     try {
       final response = await http.post(
-        Uri.parse('http://10.0.2.2:8080/api/auth/login'),
+        Uri.parse(Constants.loginUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'username': username, 'password': password}),
       );
 
       final data = jsonDecode(response.body);
+      print('Login Response: $data');
+      final result = data['result'];
 
-      if (response.statusCode == 200) {
-        final token = data['result']['token'];
+      if (response.statusCode == 200 && result != null && result is Map) {
+        final roleIdRaw = result['roleId'];
+        final roleId = roleIdRaw != null ? roleIdRaw.toString().trim().toLowerCase() : '';
 
-        if (token != null && token.isNotEmpty) {
+        const hrRoleId = '62663564-6331-6133-2d33-6336612d3131';
+        const userRoleId = '63306134-3561-6531-2d33-6336612d3131';
+
+        final token = result['token'] ?? '';
+
+        if (roleId == hrRoleId) {
+          // HR
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (_) => HomeScreen(
-                username: data['result']['username'],
-                token: token,
-              ),
+              builder: (_) => HomeHRPage(username: username, token: token),
+            ),
+          );
+        } else if (roleId == userRoleId) {
+          // User
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (_) => HomeScreen(username: username, token: token),
             ),
           );
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Login failed: Invalid token')),
+            const SnackBar(content: Text('Không xác định được vai trò.')),
           );
         }
       } else {
         final message = data['message'] ?? 'Login failed';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $message')),
+          SnackBar(content: Text('Đăng nhập thất bại: $message')),
         );
       }
     } catch (e) {
@@ -72,33 +88,8 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackBar(content: Text('Connection error: $e')),
       );
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
-  }
-
-  Widget _buildSocialButton(String label, IconData icon, Color iconColor) {
-    return Container(
-      height: 45,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(30),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: iconColor, size: 20),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(color: Colors.black),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -106,142 +97,233 @@ class _LoginScreenState extends State<LoginScreen> {
     final screenWidth = MediaQuery.of(context).size.width;
     final padding = screenWidth * 0.08;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: padding),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Image.asset('assets/anh.png', height: 100),
-              const SizedBox(height: 20),
-              const Text(
-                'Timekeeping App',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 30),
-              TextField(
-                controller: _usernameController,
-                decoration: InputDecoration(
-                  labelText: 'Username',
-                  hintText: 'Enter your username',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+    return Container(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color(0xFFFFB300),
+            Color(0xFFFF8F00),
+            Color(0xFFF57C00),
+            Color(0xFFEF6C00),
+          ],
+        ),
+      ),
+      child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          children: [
+            Align(
+              alignment: Alignment.bottomLeft,
+              child: Transform.translate(
+                offset: const Offset(-130, 80),
+                child: Transform.rotate(
+                  angle: -0.2,
+                  child: ClipPath(
+                    clipper: BottomLeftCutClipper(),
+                    child: Container(
+                      width: 420,
+                      height: 420,
+                      color: Colors.white,
+                    ),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 ),
               ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: _passwordController,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  hintText: 'Enter your password',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const SendOtpScreen()),
-                      );
-                    },
-                    child: const Text(
-                      'Forgot Password?',
-                      style: TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.w600,
+            ),
+            Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(horizontal: padding),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ColorFiltered(
+                      colorFilter: const ColorFilter.mode(
+                        Colors.white,
+                        BlendMode.srcIn,
+                      ),
+                      child: Image.network(
+                        'https://app.easyhrm.vn/image/easyhrmlogo.png',
+                        height: 70,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.error, size: 48),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Text('|', style: TextStyle(color: Colors.grey)),
-                  const SizedBox(width: 12),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const RegisterPage()),
-                      );
-                    },
-                    child: const Text(
-                      'Register',
-                      style: TextStyle(
-                        color: Color(0xFF2424E6),
-                        fontWeight: FontWeight.bold,
-                      ),
+                    const SizedBox(height: 35),
+                    Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            constraints: const BoxConstraints(minHeight: 400),
+                            padding: const EdgeInsets.all(24),
+                            margin: const EdgeInsets.only(bottom: 70),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: const Color(0xFFFF9800), // màu viền cam
+                                width: 2, // độ dày viền
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  spreadRadius: 4,
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 0),
+                                ),
+                              ],
+                            ),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 350),
+                              child: Column(
+                                children: [
+                                  TextField(
+                                    controller: _usernameController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Username',
+                                      hintText: 'Enter your username',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      prefixIcon: const Icon(Icons.person),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 25),
+                                  TextField(
+                                    controller: _passwordController,
+                                    obscureText: _obscurePassword,
+                                    decoration: InputDecoration(
+                                      labelText: 'Password',
+                                      hintText: 'Enter your password',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      prefixIcon: const Icon(Icons.lock),
+                                      suffixIcon: IconButton(
+                                        icon: Icon(
+                                          _obscurePassword
+                                              ? Icons.visibility
+                                              : Icons.visibility_off,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _obscurePassword = !_obscurePassword;
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Checkbox(
+                                            value: _rememberMe,
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _rememberMe = value ?? false;
+                                              });
+                                            },
+                                          ),
+                                          const Text('Remember me'),
+                                        ],
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => const SendOtpScreen(),
+                                            ),
+                                          );
+                                        },
+                                        style: TextButton.styleFrom(
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: const Size(50, 30),
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        child: const Text(
+                                          'Forgot Password?',
+                                          style: TextStyle(
+                                            color: Color(0xFFFF9800),
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 24),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    height: 50,
+                                    child: ElevatedButton(
+                                      onPressed: _isLoading ? null : _login,
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFFFF9800),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      child: _isLoading
+                                          ? const CircularProgressIndicator(
+                                          color: Colors.white)
+                                          : const Text(
+                                        'Login',
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: -20,
+                          left: 0,
+                          right: 0,
+                          child: Image.asset(
+                            'assets/hr.png',
+                            height: 200,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _login,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2424E6),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text(
-                    'Login',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white, // ✅ Màu trắng cho chữ "Login"
-                    ),
-                  ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  GestureDetector(
-                    onTap: () {},
-                    child: _buildSocialButton('Google', Icons.g_mobiledata, Colors.red),
-                  ),
-                  GestureDetector(
-                    onTap: () {},
-                    child: _buildSocialButton('Facebook', Icons.facebook, Colors.blue),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              TextButton(
-                onPressed: () {
-                  // TODO: Handle help
-                },
-                child: const Text(
-                  'Help',
-                  style: TextStyle(
-                    decoration: TextDecoration.underline,
-                    color: Colors.black54,
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+class BottomLeftCutClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.moveTo(0, 0);
+    path.lineTo(size.width, 0);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.lineTo(0, size.height * 0.6);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }
