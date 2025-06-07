@@ -112,17 +112,40 @@ class _HrSettingsPageState extends State<HrSettingsPage> {
                 ),
               ),
 
-          if (item.title == 'Thông tin công ty' && isExpanded)
-          Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          height: 400, // hoặc chiều cao phù hợp với nội dung của CompanyInfoSection
-          child: CompanyInfoSection(),
-                ),
+              if (item.title == 'Thông tin công ty' && isExpanded)
+                sectionWrapper(CompanyInfoSection()),
 
-              // Tương tự thêm các phần mở rộng khác
+              if (item.title == 'Cài đặt tài khoản' && isExpanded)
+                sectionWrapper(AccountSettingsSection()),
+
+              if (item.title == 'Cài đặt hệ thống' && isExpanded)
+                sectionWrapper(SystemSettingsSection()),
+
+              if (item.title == 'Quản lý quyền truy cập' && isExpanded)
+                sectionWrapper(AccessControlSection()),
+
+              if (item.title == 'Thông báo' && isExpanded)
+                sectionWrapper(NotificationSettingsSection()),
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget sectionWrapper(Widget child) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery
+              .of(context)
+              .size
+              .height * 0.6, // Giới hạn tối đa 60% màn hình
+        ),
+        child: SingleChildScrollView(
+          child: child,
+        ),
       ),
     );
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sem4_fe/ui/hr/home/HomeHr.dart'; // Đổi đường dẫn này theo đúng vị trí file HomeHR của bạn
 
 class StaffScreen extends StatelessWidget {
   final String username;
@@ -35,7 +36,7 @@ class StaffScreen extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.only(right: 16),
             child: CircleAvatar(
-              backgroundImage: AssetImage('assets/avatar.png'), // bạn đổi ảnh nếu cần
+              backgroundImage: AssetImage('assets/avatar.jpg'), // đổi ảnh nếu cần
             ),
           ),
         ],
@@ -89,7 +90,7 @@ class StaffScreen extends StatelessWidget {
                   role: 'Nhân viên bán hàng',
                   status: 'Đang làm việc',
                   shift: 'Ca Sáng',
-                  image: 'assets/staff1.png',
+                  image: 'assets/avatar.jpg',
                 ),
                 StaffCard(
                   name: 'Trần Thị Bình',
@@ -97,7 +98,7 @@ class StaffScreen extends StatelessWidget {
                   role: 'Kế toán',
                   status: 'Nghỉ phép',
                   shift: 'Ca Sáng',
-                  image: 'assets/staff2.png',
+                  image: 'assets/avatar.jpg',
                 ),
                 StaffCard(
                   name: 'Lê Văn Cường',
@@ -105,7 +106,7 @@ class StaffScreen extends StatelessWidget {
                   role: 'Kỹ thuật viên',
                   status: 'Đang làm việc',
                   shift: 'Ca Tối',
-                  image: 'assets/staff3.png',
+                  image: 'assets/avatar.jpg',
                 ),
               ],
             ),
@@ -118,9 +119,24 @@ class StaffScreen extends StatelessWidget {
         child: const Icon(Icons.add),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 1,
+        currentIndex: 1, // Nhân viên đang được chọn
         selectedItemColor: Colors.deepPurple,
         unselectedItemColor: Colors.grey,
+        onTap: (index) {
+          if (index == 0) {
+            // Điều hướng về HomeHR
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => HomeHRPage(
+                  username: username,
+                  token: token,
+                ),
+              ),
+            );
+          }
+          // Nếu bạn muốn xử lý các tab khác, thêm ở đây
+        },
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.dashboard),
