@@ -4,7 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:sem4_fe/ui/User/Homeuser/Homeuser.dart';
 import 'package:sem4_fe/Service/Constants.dart';
 import 'package:sem4_fe/ui/login/screens/send_otp_screen.dart';
-import 'package:sem4_fe/ui/hr//home/HomeHr.dart';
+import 'package:sem4_fe/ui/hr/home/HomeHr.dart';
 
 class LoginScreen extends StatefulWidget {
   final Function(String username, String password)? onLogin;
@@ -18,10 +18,27 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final FocusNode _usernameFocus = FocusNode();
+  final FocusNode _passwordFocus = FocusNode();
 
   bool _isLoading = false;
-  bool _rememberMe = false;
   bool _obscurePassword = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _usernameFocus.addListener(() => setState(() {}));
+    _passwordFocus.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    _usernameFocus.dispose();
+    _passwordFocus.dispose();
+    super.dispose();
+  }
 
   Future<void> _login() async {
     final username = _usernameController.text.trim();
@@ -37,27 +54,24 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await http.post(
-        Uri.parse(Constants.loginUrl),
+      final response = await http.post(Uri.parse(Constants.loginUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'username': username, 'password': password}),
       );
 
       final data = jsonDecode(response.body);
-      print('Login Response: $data');
       final result = data['result'];
 
       if (response.statusCode == 200 && result != null && result is Map) {
         final roleIdRaw = result['roleId'];
         final roleId = roleIdRaw != null ? roleIdRaw.toString().trim().toLowerCase() : '';
 
-        const hrRoleId = '62663564-6331-6133-2d33-6336612d3131';
-        const userRoleId = '63306134-3561-6531-2d33-6336612d3131';
+        const hrRoleId = '61386134-6262-6465-2d34-3035392d3131';
+        const userRoleId = '61396534-3262-3335-2d34-3035392d3131';
 
         final token = result['token'] ?? '';
 
         if (roleId == hrRoleId) {
-          // HR
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -65,7 +79,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         } else if (roleId == userRoleId) {
-          // User
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -164,8 +177,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: const Color(0xFFFF9800), // màu viền cam
-                                width: 2, // độ dày viền
+                                color: const Color(0xFFFF9800),
+                                width: 2,
                               ),
                               boxShadow: [
                                 BoxShadow(
@@ -180,33 +193,41 @@ class _LoginScreenState extends State<LoginScreen> {
                               constraints: const BoxConstraints(maxWidth: 350),
                               child: Column(
                                 children: [
-                                  TextField(
-                                    controller: _usernameController,
-                                    decoration: InputDecoration(
-                                      labelText: 'Username',
-                                      hintText: 'Enter your username',
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      prefixIcon: const Icon(Icons.person),
-                                    ),
+                                TextField(
+                                controller: _usernameController,
+                                focusNode: _usernameFocus,
+                                decoration: InputDecoration(
+                                  labelText: 'Username',
+                                  hintText: 'Enter your username',
+                                  labelStyle: const TextStyle(color: Colors.grey),
+                                  prefixIcon: const Icon(Icons.person, color: Colors.grey),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Colors.grey),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: const BorderSide(color: Color(0xFFFF9800), width: 2), // viền cam khi focus
+                                  ),
+                                ),
+                              ),
                                   const SizedBox(height: 25),
                                   TextField(
                                     controller: _passwordController,
+                                    focusNode: _passwordFocus,
                                     obscureText: _obscurePassword,
                                     decoration: InputDecoration(
                                       labelText: 'Password',
                                       hintText: 'Enter your password',
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      prefixIcon: const Icon(Icons.lock),
+                                      labelStyle: const TextStyle(color: Colors.grey),
+                                      prefixIcon: const Icon(Icons.lock, color: Colors.grey),
                                       suffixIcon: IconButton(
                                         icon: Icon(
-                                          _obscurePassword
-                                              ? Icons.visibility
-                                              : Icons.visibility_off,
+                                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                                          color: Colors.grey,
                                         ),
                                         onPressed: () {
                                           setState(() {
@@ -214,49 +235,46 @@ class _LoginScreenState extends State<LoginScreen> {
                                           });
                                         },
                                       ),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      enabledBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Colors.grey),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                        borderSide: const BorderSide(color: Color(0xFFFF9800), width: 2), // viền cam khi focus
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Checkbox(
-                                            value: _rememberMe,
-                                            onChanged: (value) {
-                                              setState(() {
-                                                _rememberMe = value ?? false;
-                                              });
-                                            },
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: TextButton(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                            const SendOtpScreen(),
                                           ),
-                                          const Text('Remember me'),
-                                        ],
+                                        );
+                                      },
+                                      style: TextButton.styleFrom(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size(50, 30),
+                                        tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
                                       ),
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) => const SendOtpScreen(),
-                                            ),
-                                          );
-                                        },
-                                        style: TextButton.styleFrom(
-                                          padding: EdgeInsets.zero,
-                                          minimumSize: const Size(50, 30),
-                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                        child: const Text(
-                                          'Forgot Password?',
-                                          style: TextStyle(
-                                            color: Color(0xFFFF9800),
-                                            fontWeight: FontWeight.bold,
-                                          ),
+                                      child: const Text(
+                                        'Forgot Password?',
+                                        style: TextStyle(
+                                          color: Color(0xFFFF9800),
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ),
                                   const SizedBox(height: 24),
                                   SizedBox(
@@ -265,9 +283,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                     child: ElevatedButton(
                                       onPressed: _isLoading ? null : _login,
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFFF9800),
+                                        backgroundColor:
+                                        const Color(0xFFFF9800),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius:
+                                          BorderRadius.circular(12),
                                         ),
                                       ),
                                       child: _isLoading

@@ -51,7 +51,7 @@ class _CompanyInfoSectionState extends State<CompanyInfoSection> {
                 child: Column(
                   children: [
                     Image.asset(
-                      'assets/logo_company.png',
+                      'assets/hr.png',
                       height: 80,
                     ),
                     const SizedBox(height: 8),

@@ -4,9 +4,10 @@ import 'package:http/http.dart' as http;
 import 'package:sem4_fe/ui/User//Individual/Individual.dart';
 import 'package:sem4_fe/ui/User//Notification/Notification.dart';
 import 'package:sem4_fe/ui/User//Propose/Propose.dart';
-import 'package:sem4_fe/ui/User//QR/Qrscanner.dart';
+import 'package:intl/intl.dart';
+import 'package:sem4_fe/ui/User/QR/Qrscanner.dart';
 import 'package:sem4_fe/Service/Constants.dart';
-
+import 'package:sem4_fe/ui/User/QR/Facecame.dart';
 class HomeScreen extends StatefulWidget {
   final String username;
   final String token;
@@ -24,8 +25,10 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? userData;
   bool isLoading = true;
-
   int _selectedIndex = 0;
+
+  Map<String, dynamic>? lastCheckInData;
+  bool hasCheckedInToday = false;
 
   @override
   void initState() {
@@ -35,8 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> fetchUserInfo() async {
     try {
-      final response = await http.get(
-        Uri.parse(Constants.homeUrl),
+      final response = await http.get(Uri.parse(Constants.homeUrl),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${widget.token}',
@@ -104,22 +106,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: Colors.black87,
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    _buildCheckInOption(
-                      icon: Icons.wifi,
-                      title: 'Wifi',
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        // TODO: xử lý chấm công Wifi
-                      },
-                    ),
                     const SizedBox(height: 12),
                     _buildCheckInOption(
                       icon: Icons.gps_fixed,
                       title: 'GPS',
                       onTap: () {
                         Navigator.of(context).pop();
-                        // TODO: xử lý chấm công GPS
+                        _navigateToFaceAttendance();
                       },
                     ),
                     const SizedBox(height: 12),
@@ -154,12 +147,40 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => QRScannerScreen(
-          username: widget.username,
           token: widget.token,
+          employeeId: userData?['id'] ?? 0, // Lấy ID nhân viên từ userData
+          latitude: 0.0, // Thay bằng vĩ độ thực tế
+          longitude: 0.0, // Thay bằng kinh độ thực tế
         ),
       ),
-    );
+    ).then((result) {
+      if (result == true) {
+        // Xử lý khi chấm công thành công
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chấm công thành công!')),
+        );
+        // Có thể gọi lại fetchUserInfo để cập nhật trạng thái
+        fetchUserInfo();
+      }
+    });
   }
+
+  void _navigateToFaceAttendance() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FaceAttendanceScreen(),
+      ),
+    );
+
+    if (result != null) {
+      // Xử lý kết quả trả về nếu cần
+      setState(() {
+        hasCheckedInToday = true;
+      });
+    }
+  }
+
 
   Widget _buildHomePage() {
     if (isLoading) {
@@ -170,174 +191,178 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     return Container(
-    color: Colors.white,
-    child: SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Avatar và thông tin người dùng
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 28,
-                backgroundImage: (userData!['avatarUrl'] != null &&
-                    userData!['avatarUrl'].toString().isNotEmpty)
-                    ? NetworkImage(userData!['avatarUrl'])
-                    : const AssetImage('assets/avatar.jpg')
-                as ImageProvider,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      "Xin chào,",
-                      style: TextStyle(fontSize: 16, color: Colors.black87),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      userData!['fullName'] ?? widget.username,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      userData!['position'] ?? 'Cộng tác viên kinh doanh',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ],
+      color: Colors.white,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Avatar và thông tin người dùng
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundImage: (userData!['avatarUrl'] != null &&
+                      userData!['avatarUrl'].toString().isNotEmpty)
+                      ? NetworkImage(userData!['avatarUrl'])
+                      : const AssetImage('assets/avatar.jpg')
+                  as ImageProvider,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Ca làm việc
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade300),
-              borderRadius: BorderRadius.circular(8),
-              color: Colors.white,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                Text(
-                  "Ca làm việc",
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.black87,
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        "Xin chào,",
+                        style: TextStyle(fontSize: 16, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        userData!['fullName'] ?? widget.username,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        userData!['position'] ?? 'Cộng tác viên kinh doanh',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Vào ca", style: TextStyle(color: Colors.grey)),
-                        SizedBox(height: 4),
-                      ],
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Ra ca", style: TextStyle(color: Colors.grey)),
-                        SizedBox(height: 4),
-                      ],
-                    ),
-                  ],
-                )
               ],
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
-          // Chấm công chính
-          GestureDetector(
-            onTap: showCheckInOptions,
-            child: Container(
+            // Ca làm việc
+            Container(
               width: double.infinity,
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
+                border: Border.all(color: Colors.grey.shade300),
                 borderRadius: BorderRadius.circular(8),
-                color: const Color(0xFFD49A2F),
+                color: Colors.white,
               ),
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: const [
-                  Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
-                  SizedBox(width: 12),
                   Text(
-                    "Chấm công",
+                    "Ca làm việc",
                     style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 20,
-                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: Colors.black87,
                     ),
                   ),
+                  SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Vào ca", style: TextStyle(color: Colors.grey)),
+                          SizedBox(height: 4),
+                        ],
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Ra ca", style: TextStyle(color: Colors.grey)),
+                          SizedBox(height: 4),
+                        ],
+                      ),
+                    ],
+                  )
                 ],
               ),
             ),
-          ),
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // 2 phần chấm công khác nằm ngang
-          Row(
-            children: [
-              Expanded(
-                child: _buildQRAction(
-                  icon: Icons.access_time_filled,
-                  text: "Chấm công làm thêm giờ",
-                  color: const Color(0xFFF29F05),
+            // Chấm công chính
+            GestureDetector(
+              onTap: showCheckInOptions,
+              child: Container(
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(8),
+                  color: const Color(0xFFD49A2F),
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _buildQRAction(
-                  icon: Icons.shield_moon,
-                  text: "Chấm công trực ca / trực gác",
-                  color: const Color(0xFF007B83),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-
-          // Trạng thái
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              // color: Colors.orange.shade100,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Center(
-              child: Text(
-                "Hôm nay bạn chưa chấm công",
-                style: TextStyle(
-                  color: Colors.orange.shade800,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
+                    SizedBox(width: 12),
+                    Text(
+                      "Chấm công",
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 20,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 24),
-        ],
-      ),
+            const SizedBox(height: 16),
+
+            // 2 phần chấm công khác nằm ngang
+            Row(
+              children: [
+                Expanded(
+                  child: _buildQRAction(
+                    icon: Icons.access_time_filled,
+                    text: "Chấm công làm thêm giờ",
+                    color: const Color(0xFFF29F05),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _buildQRAction(
+                    icon: Icons.shield_moon,
+                    text: "Chấm công trực ca / trực gác",
+                    color: const Color(0xFF007B83),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Trạng thái
+            // Thay thế phần "Trạng thái" hiện tại bằng:
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: hasCheckedInToday ? Colors.green.shade100 : Colors.orange.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(
+                  hasCheckedInToday
+                      ? "Hôm nay bạn đã chấm công"
+                      : "Hôm nay bạn chưa chấm công",
+                  style: TextStyle(
+                    color: hasCheckedInToday ? Colors.green.shade800 : Colors.orange.shade800,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+          ],
+        ),
       ),
     );
   }
@@ -372,6 +397,86 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildCheckInInfo() {
+    if (lastCheckInData == null) return SizedBox();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+        color: Colors.white,
+      ),
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            "Thông tin chấm công gần nhất",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+              color: Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Ngày", style: TextStyle(color: Colors.grey)),
+                  Text(
+                    DateFormat('dd/MM/yyyy').format(DateTime.parse(lastCheckInData!['createdAt'])),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Giờ", style: TextStyle(color: Colors.grey)),
+                  Text(
+                    DateFormat('HH:mm').format(DateTime.parse(lastCheckInData!['createdAt'])),
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Ca làm", style: TextStyle(color: Colors.grey)),
+                  Text(
+                    lastCheckInData!['shift'] ?? 'Không xác định',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("Phương thức", style: TextStyle(color: Colors.grey)),
+                  const Text(
+                    "QR Code",
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          )
+        ],
       ),
     );
   }
