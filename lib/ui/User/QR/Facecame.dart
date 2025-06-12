@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
+import 'package:sem4_fe/Service/Constants.dart';
+
 
 class FaceAttendanceScreen extends StatefulWidget {
   const FaceAttendanceScreen({Key? key}) : super(key: key);
@@ -35,10 +37,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       final frontCamera = cameras.firstWhere(
               (camera) => camera.lensDirection == CameraLensDirection.front);
 
-      _controller = CameraController(
-        frontCamera,
-        ResolutionPreset.medium,
-      );
+      _controller = CameraController(frontCamera, ResolutionPreset.medium);
 
       _initializeControllerFuture = _controller!.initialize().then((_) {
         if (!mounted) return;
@@ -79,7 +78,6 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       if (mounted) setState(() => _showFlashEffect = false);
     });
 
-    // Delay 3 giây để vòng progress chạy
     await Future.delayed(const Duration(seconds: 3));
 
     try {
@@ -89,15 +87,16 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
 
       setState(() => _capturedImage = image);
       _faceDetectionTimer?.cancel();
+
+      // ✅ Tự động gửi ảnh sau khi chụp xong
+      await _sendImageToServer();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Lỗi chụp ảnh: $e')),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isCapturing = false);
-      }
+      if (mounted) setState(() => _isCapturing = false);
     }
   }
 
@@ -105,7 +104,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
     if (_capturedImage == null) return;
 
     setState(() => _isUploading = true);
-    final uri = Uri.parse('http://10.0.2.2:8080/api/attendance');
+    final uri = Uri.parse(Constants.attendanceUrl);
 
     try {
       final request = http.MultipartRequest('POST', uri);
@@ -125,6 +124,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
             const SnackBar(content: Text('🟢 Gửi ảnh thành công!')),
           );
 
+          // ✅ Thoát ra và trả kết quả sau khi gửi ảnh thành công
           Navigator.of(context).pop({
             'status': 'success',
             'time': DateTime.now().toIso8601String(),
@@ -148,18 +148,8 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
         SnackBar(content: Text('❌ Lỗi gửi ảnh: $e')),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isUploading = false);
-      }
+      if (mounted) setState(() => _isUploading = false);
     }
-  }
-
-  void _retakePicture() {
-    setState(() {
-      _capturedImage = null;
-      _isFaceDetected = false;
-    });
-    _startFaceDetection();
   }
 
   @override
@@ -229,23 +219,20 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
               builder: (context, value, child) {
                 return CircularProgressIndicator(
                   strokeWidth: 4,
-                  valueColor:
-                  const AlwaysStoppedAnimation(Color(0xFFF57C00)),
+                  valueColor: const AlwaysStoppedAnimation(
+                      Color(0xFFF57C00)),
                   backgroundColor: Colors.orange.withOpacity(0.2),
                   value: value,
                 );
-              },
-              onEnd: () {
-                // Không cần setState gì thêm vì _isCapturing sẽ được set false trong _takePicture
               },
             )
                 : Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  // Đổi màu viền khi đã chụp ảnh sang cam, còn không thì màu xám
-                  color:
-                  _capturedImage != null ? Colors.orange : Colors.grey,
+                  color: _capturedImage != null
+                      ? Colors.orange
+                      : Colors.grey,
                   width: 4,
                 ),
               ),
@@ -257,52 +244,17 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
             bottom: MediaQuery.of(context).size.height * 0.2,
             left: 0,
             right: 0,
-            child: Column(
-              children: const [
-                Text(
-                  'ĐÃ PHÁT HIỆN KHUÔN MẶT',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            child: const Text(
+              'ĐÃ PHÁT HIỆN KHUÔN MẶT',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.black,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
       ],
-    );
-  }
-
-  Widget _buildBottomButtons() {
-    if (_capturedImage == null) return const SizedBox();
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          ElevatedButton.icon(
-            onPressed: _retakePicture,
-            icon: const Icon(Icons.camera_alt),
-            label: const Text('Chụp lại'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-          ),
-          ElevatedButton.icon(
-            onPressed: _sendImageToServer,
-            icon: const Icon(Icons.cloud_upload),
-            label: const Text('Gửi ảnh'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -315,8 +267,9 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
         backgroundColor: Colors.orange[500],
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        titleTextStyle: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-        titleSpacing: -5, // giảm khoảng cách giữa icon back và title
+        titleTextStyle: const TextStyle(
+            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+        titleSpacing: -5,
       ),
       body: _isUploading
           ? const Center(child: CircularProgressIndicator())
@@ -324,7 +277,6 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
           ? Column(
         children: [
           Expanded(child: _buildOverlayWithCameraOrImage()),
-          _buildBottomButtons(),
         ],
       )
           : const Center(

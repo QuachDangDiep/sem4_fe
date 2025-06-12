@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -27,13 +28,27 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   String? _errorMessage;
 
   @override
+  void initState() {
+    super.initState();
+    // Đặt màu chữ thanh trạng thái (status bar) thành trắng
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        title: const Text('Quét mã QR chấm công'),
-        backgroundColor: Colors.blue[800],
+    return Scaffold(appBar: AppBar(
+        backgroundColor: Colors.orange[500],
         elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white), // Mũi tên trắng
+        title: const Text(
+          'Chấm công bằng QR',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        centerTitle: false, // Giữ chữ gần mũi tên
       ),
       body: Stack(
         children: [
@@ -55,31 +70,32 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           ),
 
           // Overlay hướng dẫn
-          Positioned(
-            top: 100,
-            left: 0,
-            right: 0,
+          Center(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  _isProcessing
-                      ? 'Đang xử lý...'
-                      : 'Quét mã QR tại đây',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
+                const SizedBox(height: 20),
                 if (_errorMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.symmetric(horizontal: 30),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                     child: Text(
                       _errorMessage!,
-                      style: TextStyle(
-                        color: Colors.red,
+                      style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 16,
                       ),
+                      textAlign: TextAlign.center,
                     ),
                   ),
               ],
@@ -94,18 +110,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
             ),
           ),
-
-          // Nút đóng
-          if (!_isProcessing)
-            Positioned(
-              bottom: 40,
-              right: 20,
-              child: FloatingActionButton(
-                onPressed: () => Navigator.pop(context),
-                backgroundColor: Colors.red,
-                child: const Icon(Icons.close),
-              ),
-            ),
 
           // Hiển thị khi xử lý thành công
           if (_isSuccess)
@@ -135,8 +139,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                         onPressed: () => Navigator.pop(context, true),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 30, vertical: 15),
+                          padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
                         ),
                         child: const Text(
                           'ĐÓNG',
@@ -157,25 +160,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
+      _isSuccess = false;
     });
 
     try {
-      // 1. Kiểm tra mã QR có hợp lệ không
-      final qrCheckResponse = await http.get(
+      final response = await http.post(
         Uri.parse('http://10.0.2.2:8080/api/qrattendance/$qrCode'),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      if (qrCheckResponse.statusCode != 200) {
-        throw Exception('Mã QR không hợp lệ hoặc đã hết hạn');
-      }
-
-      // 2. Gửi dữ liệu chấm công (không cần ảnh face)
-      final attendanceResponse = await http.post(
-        Uri.parse('http://10.0.2.2:8080/api/qrattendance'),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
@@ -185,21 +175,23 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           'latitude': widget.latitude,
           'longitude': widget.longitude,
           'qrCode': qrCode,
-          'attendanceMethod': 'QR_GPS', // Phương thức chấm công
+          'attendanceMethod': 'QR_CODE',
         }),
       );
 
-      if (attendanceResponse.statusCode == 200) {
+      if (response.statusCode == 200) {
         setState(() => _isSuccess = true);
       } else {
-        final errorData = jsonDecode(attendanceResponse.body);
-        throw Exception(errorData['message'] ?? 'Lỗi khi chấm công');
+        final errorData = jsonDecode(response.body);
+        throw Exception(errorData['message'] ?? 'Mã QR không hợp lệ hoặc đã hết hạn');
       }
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
         _isProcessing = false;
       });
+    } finally {
+      setState(() => _isProcessing = false);
     }
   }
 }
@@ -207,82 +199,28 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 class _QRScannerOverlay extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
+    final screenWidth = size.width;
+    final screenHeight = size.height;
     final paint = Paint()..color = Colors.black54;
+
     final borderPaint = Paint()
-      ..color = Colors.blue
-      ..strokeWidth = 4
+      ..color = Colors.white
+      ..strokeWidth = 3
       ..style = PaintingStyle.stroke;
 
-    // Vẽ nền mờ xung quanh
-    final outerPath = Path()..addRect(Rect.largest);
     final innerRect = Rect.fromCenter(
-      center: Offset(size.width / 2, size.height / 2),
-      width: size.width * 0.7,
-      height: size.width * 0.7,
-    );
-    final innerPath = Path()..addRect(innerRect);
-    canvas.drawPath(
-      Path.combine(PathOperation.difference, outerPath, innerPath),
-      paint,
+      center: Offset(screenWidth / 2, screenHeight / 2),
+      width: screenWidth * 0.75,
+      height: screenWidth * 0.75,
     );
 
-    // Vẽ khung QR
-    canvas.drawRect(innerRect, borderPaint);
+    final rRect = RRect.fromRectAndRadius(innerRect, const Radius.circular(32)); // Bo góc hơn
 
-    // Vẽ góc vuông
-    final cornerLength = 30.0;
-    final cornerPaint = Paint()
-      ..color = Colors.green
-      ..strokeWidth = 6
-      ..style = PaintingStyle.stroke;
+    final outerPath = Path()..addRect(Rect.fromLTWH(0, 0, screenWidth, screenHeight));
+    final innerPath = Path()..addRRect(rRect);
 
-    // Góc trên trái
-    canvas.drawLine(
-      innerRect.topLeft,
-      innerRect.topLeft + Offset(cornerLength, 0),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      innerRect.topLeft,
-      innerRect.topLeft + Offset(0, cornerLength),
-      cornerPaint,
-    );
-
-    // Góc trên phải
-    canvas.drawLine(
-      innerRect.topRight,
-      innerRect.topRight - Offset(cornerLength, 0),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      innerRect.topRight,
-      innerRect.topRight + Offset(0, cornerLength),
-      cornerPaint,
-    );
-
-    // Góc dưới trái
-    canvas.drawLine(
-      innerRect.bottomLeft,
-      innerRect.bottomLeft + Offset(cornerLength, 0),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      innerRect.bottomLeft,
-      innerRect.bottomLeft - Offset(0, cornerLength),
-      cornerPaint,
-    );
-
-    // Góc dưới phải
-    canvas.drawLine(
-      innerRect.bottomRight,
-      innerRect.bottomRight - Offset(cornerLength, 0),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      innerRect.bottomRight,
-      innerRect.bottomRight - Offset(0, cornerLength),
-      cornerPaint,
-    );
+    canvas.drawPath(Path.combine(PathOperation.difference, outerPath, innerPath), paint);
+    canvas.drawRRect(rRect, borderPaint);
   }
 
   @override

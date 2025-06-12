@@ -1,11 +1,98 @@
 import 'package:flutter/material.dart';
-import 'package:sem4_fe/ui/hr/home/HomeHr.dart'; // Đổi đường dẫn này theo đúng vị trí file HomeHR của bạn
+import 'package:http/http.dart' as http;
+import 'dart:convert';
+import 'package:sem4_fe/ui/hr/home/HomeHr.dart'; // Điều chỉnh đường dẫn nếu cần
 
-class StaffScreen extends StatelessWidget {
+// Model cho UserResponse
+class UserResponse {
+  final String id;
+  final String username;
+  final String email;
+  final String role;
+  final String status;
+  final String? shift;
+  final String? image;
+
+  UserResponse({
+    required this.id,
+    required this.username,
+    required this.email,
+    required this.role,
+    required this.status,
+    this.shift,
+    this.image,
+  });
+
+  factory UserResponse.fromJson(Map<String, dynamic> json) {
+    return UserResponse(
+      id: json['userId']?.toString() ?? 'Unknown',
+      username: json['username'] ?? 'Không xác định',
+      email: json['email'] ?? 'Không có email',
+      role: json['role'] ?? 'Không có vai trò',
+      status: json['status'] == 'Active' ? 'Đang làm việc' : json['status'] ?? 'Không xác định',
+      shift: json['shift'] ?? 'Không có ca',
+      image: json['image'] ?? 'assets/avatar.jpg',
+    );
+  }
+}
+
+class StaffScreen extends StatefulWidget {
   final String username;
   final String token;
 
   const StaffScreen({super.key, required this.token, required this.username});
+
+  @override
+  _StaffScreenState createState() => _StaffScreenState();
+}
+
+class _StaffScreenState extends State<StaffScreen> {
+  late Future<List<UserResponse>> _usersFuture;
+  // UUID của vai trò "user" – thay bằng UUID thực tế từ backend
+  static const String userRoleId = 'a9e42b35-4059-11f0-8c6f-04bf1b09e9e6';
+
+  @override
+  void initState() {
+    super.initState();
+    _usersFuture = fetchUsers();
+  }
+
+  Future<List<UserResponse>> fetchUsers({String? status}) async {
+    final url = Uri.parse('http://10.0.2.2:8080/api/users${status != null ? '?status=$status' : ''}');
+    try {
+      final response = await http.get(
+        url,
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> users = data['result'] ?? [];
+        // Lọc chỉ người dùng có role là "user"
+        return users
+            .map((json) => UserResponse.fromJson(json))
+            .where((user) => user.role == userRoleId)
+            .toList();
+      } else {
+        throw Exception('Không thể tải danh sách người dùng: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('Error fetching users: $e');
+      throw Exception('Lỗi khi lấy danh sách người dùng: $e');
+    }
+  }
+
+  void refreshUsers() {
+    setState(() {
+      _usersFuture = fetchUsers();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,14 +123,14 @@ class StaffScreen extends StatelessWidget {
           const Padding(
             padding: EdgeInsets.only(right: 16),
             child: CircleAvatar(
-              backgroundImage: AssetImage('assets/avatar.jpg'), // đổi ảnh nếu cần
+              backgroundImage: AssetImage('assets/avatar.jpg'),
             ),
           ),
         ],
       ),
       body: Column(
         children: [
-          // Search + Filter
+          // Tìm kiếm + Lọc
           Padding(
             padding: const EdgeInsets.all(12.0),
             child: Row(
@@ -58,11 +145,18 @@ class StaffScreen extends StatelessWidget {
                       ),
                       contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     ),
+                    onChanged: (value) {
+                      // Thêm logic tìm kiếm nếu cần
+                    },
                   ),
                 ),
                 const SizedBox(width: 10),
                 ElevatedButton.icon(
-                  onPressed: () {},
+                  onPressed: () {
+                    setState(() {
+                      _usersFuture = fetchUsers(status: 'Active');
+                    });
+                  },
                   icon: const Icon(Icons.filter_alt_outlined),
                   label: const Text('Lọc'),
                   style: ElevatedButton.styleFrom(
@@ -81,61 +175,72 @@ class StaffScreen extends StatelessWidget {
           ),
           // Danh sách nhân viên
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              children: const [
-                StaffCard(
-                  name: 'Nguyễn Văn An',
-                  id: 'NV001',
-                  role: 'Nhân viên bán hàng',
-                  status: 'Đang làm việc',
-                  shift: 'Ca Sáng',
-                  image: 'assets/avatar.jpg',
-                ),
-                StaffCard(
-                  name: 'Trần Thị Bình',
-                  id: 'NV002',
-                  role: 'Kế toán',
-                  status: 'Nghỉ phép',
-                  shift: 'Ca Sáng',
-                  image: 'assets/avatar.jpg',
-                ),
-                StaffCard(
-                  name: 'Lê Văn Cường',
-                  id: 'NV003',
-                  role: 'Kỹ thuật viên',
-                  status: 'Đang làm việc',
-                  shift: 'Ca Tối',
-                  image: 'assets/avatar.jpg',
-                ),
-              ],
+            child: FutureBuilder<List<UserResponse>>(
+              future: _usersFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                } else if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('Lỗi: ${snapshot.error}'),
+                        const SizedBox(height: 10),
+                        ElevatedButton(
+                          onPressed: refreshUsers,
+                          child: const Text('Thử lại'),
+                        ),
+                      ],
+                    ),
+                  );
+                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text('Không tìm thấy người dùng với vai trò user'));
+                }
+
+                final users = snapshot.data!;
+                return ListView.builder(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  itemCount: users.length,
+                  itemBuilder: (context, index) {
+                    final user = users[index];
+                    return StaffCard(
+                      name: user.username,
+                      id: user.id,
+                      role: user.role,
+                      status: user.status,
+                      shift: user.shift ?? 'Không có ca',
+                      image: user.image ?? 'assets/avatar.jpg',
+                    );
+                  },
+                );
+              },
             ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () {},
+        onPressed: refreshUsers,
         backgroundColor: Colors.deepPurple,
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.refresh),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: 1, // Nhân viên đang được chọn
+        currentIndex: 1,
         selectedItemColor: Colors.deepPurple,
         unselectedItemColor: Colors.grey,
         onTap: (index) {
           if (index == 0) {
-            // Điều hướng về HomeHR
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(
                 builder: (context) => HomeHRPage(
-                  username: username,
-                  token: token,
+                  username: widget.username,
+                  token: widget.token,
                 ),
               ),
             );
           }
-          // Nếu bạn muốn xử lý các tab khác, thêm ở đây
+          // Xử lý các tab khác nếu cần
         },
         items: const [
           BottomNavigationBarItem(
@@ -199,14 +304,16 @@ class StaffCard extends StatelessWidget {
         contentPadding: const EdgeInsets.all(12),
         leading: CircleAvatar(
           radius: 26,
-          backgroundImage: AssetImage(image),
+          backgroundImage: image.startsWith('http')
+              ? NetworkImage(image)
+              : AssetImage(image) as ImageProvider,
         ),
         title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Mã NV: $id'),
-            Text(role),
+            Text('Email: $role'), // Hiển thị email thay vì role UUID
           ],
         ),
         trailing: Column(

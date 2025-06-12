@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:sem4_fe/ui/User/Homeuser/Homeuser.dart';
 import 'package:sem4_fe/Service/Constants.dart';
 import 'package:sem4_fe/ui/login/screens/send_otp_screen.dart';
@@ -46,7 +49,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (username.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields')),
+        const SnackBar(content: Text('Vui lòng điền đầy đủ thông tin')),
       );
       return;
     }
@@ -54,57 +57,79 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final response = await http.post(Uri.parse(Constants.loginUrl),
+      final response = await http.post(
+        Uri.parse(Constants.loginUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'username': username, 'password': password}),
-      );
+      ).timeout(const Duration(seconds: 10)); // Thêm timeout 10 giây
 
       final data = jsonDecode(response.body);
-      final result = data['result'];
+      print('API Full Response: $data');
 
-      if (response.statusCode == 200 && result != null && result is Map) {
-        final roleIdRaw = result['roleId'];
-        final roleId = roleIdRaw != null ? roleIdRaw.toString().trim().toLowerCase() : '';
+      if (response.statusCode == 200) {
+        final token = data['result']['token']?.toString() ?? '';
+        if (token.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không nhận được token')),
+          );
+          return;
+        }
 
-        const hrRoleId = '61386134-6262-6465-2d34-3035392d3131';
-        const userRoleId = '61396534-3262-3335-2d34-3035392d3131';
+        // Lấy role từ token hoặc response
+        String role = '';
+        try {
+          // Ưu tiên lấy role từ JWT token nếu có
+          final decodedToken = JwtDecoder.decode(token);
+          role = (decodedToken['role']?.toString() ?? '').toLowerCase();
+          print('Decoded role from token: $role');
+        } catch (e) {
+          print('Không thể decode token: $e');
+          // Fallback: lấy role từ response
+          role = data['result']['role']?.toString().trim().toLowerCase() ?? '';
+        }
 
-        final token = result['token'] ?? '';
+        print('Final determined role: $role');
 
-        if (roleId == hrRoleId) {
+        // Chuyển hướng theo role
+        if (role == 'hr') {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (_) => HomeHRPage(username: username, token: token),
             ),
           );
-        } else if (roleId == userRoleId) {
+        } else {
+          // Mặc định chuyển đến trang user
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
               builder: (_) => HomeScreen(username: username, token: token),
             ),
           );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Không xác định được vai trò.')),
-          );
         }
       } else {
-        final message = data['message'] ?? 'Login failed';
+        final message = data['message'] ?? 'Đăng nhập thất bại (Mã lỗi: ${response.statusCode})';
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Đăng nhập thất bại: $message')),
+          SnackBar(content: Text(message)),
         );
       }
-    } catch (e) {
+    } on TimeoutException {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Connection error: $e')),
+        const SnackBar(content: Text('Server không phản hồi. Vui lòng thử lại sau')),
+      );
+    } on SocketException {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Không thể kết nối đến server. Kiểm tra mạng')),
+      );
+    } catch (e, stackTrace) {
+      print('Lỗi đăng nhập chi tiết: $e\n$stackTrace');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi: ${e.toString().split('\n').first}')),
       );
     } finally {
       setState(() => _isLoading = false);
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;

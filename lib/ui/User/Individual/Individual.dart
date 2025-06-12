@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sem4_fe/ui/login/Login.dart';
 
 class PersonalPage extends StatelessWidget {
   const PersonalPage({Key? key}) : super(key: key);
@@ -53,6 +54,10 @@ class PersonalPage extends StatelessWidget {
                           TextButton(
                             onPressed: () {
                               Navigator.pop(context);
+                              Navigator.pushReplacement(
+                                context,
+                                MaterialPageRoute(builder: (context) => LoginScreen()),
+                              );
                               // TODO: Thực hiện đăng xuất
                             },
                             child: const Text('Đăng xuất'),
