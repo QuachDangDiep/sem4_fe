@@ -3,7 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:sem4_fe/Service/Constants.dart';
 
 class FaceAttendanceScreen extends StatefulWidget {
   const FaceAttendanceScreen({Key? key}) : super(key: key);
@@ -33,13 +37,10 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
     try {
       final cameras = await availableCameras();
       final frontCamera = cameras.firstWhere(
-              (camera) => camera.lensDirection == CameraLensDirection.front);
-
-      _controller = CameraController(
-        frontCamera,
-        ResolutionPreset.medium,
+            (camera) => camera.lensDirection == CameraLensDirection.front,
       );
 
+      _controller = CameraController(frontCamera, ResolutionPreset.medium);
       _initializeControllerFuture = _controller!.initialize().then((_) {
         if (!mounted) return;
         setState(() => _isCameraInitialized = true);
@@ -79,9 +80,6 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       if (mounted) setState(() => _showFlashEffect = false);
     });
 
-    // Delay 3 giây để vòng progress chạy
-    await Future.delayed(const Duration(seconds: 3));
-
     try {
       await _initializeControllerFuture;
       final image = await _controller!.takePicture();
@@ -89,15 +87,55 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
 
       setState(() => _capturedImage = image);
       _faceDetectionTimer?.cancel();
+      await _sendImageToServer();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Lỗi chụp ảnh: $e')),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isCapturing = false);
+      if (mounted) setState(() => _isCapturing = false);
+    }
+  }
+
+  Future<Position> _getCurrentLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw Exception('Dịch vụ vị trí chưa được bật');
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        throw Exception('Bạn đã từ chối quyền truy cập vị trí');
       }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception('Bạn đã từ chối quyền truy cập vị trí vĩnh viễn');
+    }
+
+    return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
+  }
+
+  Future<String?> _getEmployeeIdFromToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      if (token == null || token.isEmpty) {
+        throw Exception('Không tìm thấy token đăng nhập');
+      }
+
+      final Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+      final employeeId = decodedToken['employeeId'] ?? decodedToken['sub'];
+      if (employeeId == null) {
+        throw Exception('Không tìm thấy employeeId trong token');
+      }
+      return employeeId.toString();
+    } catch (e) {
+      throw Exception('Lỗi khi giải mã token: $e');
     }
   }
 
@@ -105,42 +143,59 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
     if (_capturedImage == null) return;
 
     setState(() => _isUploading = true);
-    final uri = Uri.parse('http://10.0.2.2:8080/api/attendance');
+
+    final uri = Uri.parse('${Constants.baseUrl}/api/qrattendance/face');
+
+    final bytes = await File(_capturedImage!.path).readAsBytes();
+    final base64Image = base64Encode(bytes);
 
     try {
-      final request = http.MultipartRequest('POST', uri);
-      request.files.add(
-        await http.MultipartFile.fromPath('image', _capturedImage!.path),
+      final employeeId = await _getEmployeeIdFromToken();
+      final position = await _getCurrentLocation();
+      final token = (await SharedPreferences.getInstance()).getString('auth_token');
+
+      final payload = {
+        "employeeId": employeeId,
+        "imageBase64": base64Image,
+        "latitude": position.latitude,
+        "longitude": position.longitude,
+      };
+
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(payload),
       );
 
-      final response = await request.send();
       if (!mounted) return;
 
-      if (response.statusCode == 200) {
-        final responseBody = await response.stream.bytesToString();
-        final jsonResponse = jsonDecode(responseBody);
-
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('🟢 Gửi ảnh thành công!')),
-          );
-
-          Navigator.of(context).pop({
-            'status': 'success',
-            'time': DateTime.now().toIso8601String(),
-            'data': jsonResponse,
-            'message': 'Chấm công bằng khuôn mặt thành công'
-          });
-        }
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final jsonResponse = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('🟢 Chấm công bằng khuôn mặt thành công!')),
+        );
+        Navigator.of(context).pop({
+          'status': 'success',
+          'time': DateTime.now().toIso8601String(),
+          'data': jsonResponse,
+          'message': 'Chấm công bằng khuôn mặt thành công'
+        });
       } else {
-        final errorResponse = await response.stream.bytesToString();
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text(
-                    '🔴 Lỗi server: ${response.statusCode} - $errorResponse')),
-          );
+        String errorMessage = '🔴 Lỗi server: ${response.statusCode}';
+        if (response.body.isNotEmpty) {
+          try {
+            final errorJson = jsonDecode(response.body);
+            errorMessage += ' - ${errorJson['message'] ?? errorJson}';
+          } catch (_) {
+            errorMessage += ' - ${response.body}';
+          }
         }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
       }
     } catch (e) {
       if (!mounted) return;
@@ -148,18 +203,8 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
         SnackBar(content: Text('❌ Lỗi gửi ảnh: $e')),
       );
     } finally {
-      if (mounted) {
-        setState(() => _isUploading = false);
-      }
+      if (mounted) setState(() => _isUploading = false);
     }
-  }
-
-  void _retakePicture() {
-    setState(() {
-      _capturedImage = null;
-      _isFaceDetected = false;
-    });
-    _startFaceDetection();
   }
 
   @override
@@ -179,10 +224,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
             Colors.white.withOpacity(0.7),
             BlendMode.srcOver,
           ),
-          child: Container(
-            width: double.infinity,
-            height: double.infinity,
-          ),
+          child: Container(width: double.infinity, height: double.infinity),
         ),
         Center(
           child: ClipOval(
@@ -235,17 +277,14 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
                   value: value,
                 );
               },
-              onEnd: () {
-                // Không cần setState gì thêm vì _isCapturing sẽ được set false trong _takePicture
-              },
             )
                 : Container(
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  // Đổi màu viền khi đã chụp ảnh sang cam, còn không thì màu xám
-                  color:
-                  _capturedImage != null ? Colors.orange : Colors.grey,
+                  color: _capturedImage != null
+                      ? Colors.orange
+                      : Colors.grey,
                   width: 4,
                 ),
               ),
@@ -257,52 +296,17 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
             bottom: MediaQuery.of(context).size.height * 0.2,
             left: 0,
             right: 0,
-            child: Column(
-              children: const [
-                Text(
-                  'ĐÃ PHÁT HIỆN KHUÔN MẶT',
-                  style: TextStyle(
-                    color: Colors.black,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+            child: const Text(
+              'ĐÃ PHÁT HIỆN KHUÔN MẶT',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.black,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
       ],
-    );
-  }
-
-  Widget _buildBottomButtons() {
-    if (_capturedImage == null) return const SizedBox();
-    return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          ElevatedButton.icon(
-            onPressed: _retakePicture,
-            icon: const Icon(Icons.camera_alt),
-            label: const Text('Chụp lại'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.orange,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-          ),
-          ElevatedButton.icon(
-            onPressed: _sendImageToServer,
-            icon: const Icon(Icons.cloud_upload),
-            label: const Text('Gửi ảnh'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -315,18 +319,16 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
         backgroundColor: Colors.orange[500],
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
-        titleTextStyle: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-        titleSpacing: -5, // giảm khoảng cách giữa icon back và title
+        titleTextStyle: const TextStyle(
+            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+        titleSpacing: -5,
       ),
       body: _isUploading
           ? const Center(child: CircularProgressIndicator())
           : (_isCameraInitialized
-          ? Column(
-        children: [
-          Expanded(child: _buildOverlayWithCameraOrImage()),
-          _buildBottomButtons(),
-        ],
-      )
+          ? Column(children: [
+        Expanded(child: _buildOverlayWithCameraOrImage()),
+      ])
           : const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:sem4_fe/Service/Constants.dart';
 
 class QRScannerScreen extends StatefulWidget {
   final String token;
@@ -25,6 +26,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   bool _isProcessing = false;
   bool _isSuccess = false;
   String? _errorMessage;
+  Map<String, dynamic>? _attendanceData;
 
   @override
   Widget build(BuildContext context) {
@@ -130,6 +132,32 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      if (_attendanceData != null) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          'Mã QR: ${_attendanceData!['qrId']}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Mã nhân viên: ${_attendanceData!['employeeId']}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Phương thức: ${_attendanceData!['attendanceMethod']}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: () => Navigator.pop(context, true),
@@ -157,12 +185,14 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
+      _isSuccess = false;
+      _attendanceData = null;
     });
 
     try {
       // 1. Kiểm tra mã QR có hợp lệ không
       final qrCheckResponse = await http.get(
-        Uri.parse('http://10.0.2.2:8080/api/qrattendance/$qrCode'),
+        Uri.parse(Constants.searchQrCodeUrl(qrCode)),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
@@ -173,31 +203,41 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         throw Exception('Mã QR không hợp lệ hoặc đã hết hạn');
       }
 
-      // 2. Gửi dữ liệu chấm công (không cần ảnh face)
+      // 2. Gửi dữ liệu chấm công (chỉ 3 trường)
       final attendanceResponse = await http.post(
-        Uri.parse('http://10.0.2.2:8080/api/qrattendance'),
+        Uri.parse(Constants.attendanceUrl),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
         },
         body: jsonEncode({
           'employeeId': widget.employeeId,
-          'latitude': widget.latitude,
-          'longitude': widget.longitude,
           'qrCode': qrCode,
-          'attendanceMethod': 'QR_GPS', // Phương thức chấm công
+          'attendanceMethod': 'QR', // Sử dụng enum value từ backend
         }),
       );
 
+      final responseData = jsonDecode(attendanceResponse.body);
+
       if (attendanceResponse.statusCode == 200) {
-        setState(() => _isSuccess = true);
+        setState(() {
+          _isSuccess = true;
+          _attendanceData = {
+            'qrId': responseData['qrId'],
+            'employeeId': responseData['employeeId']?.toString() ?? widget.employeeId.toString(),
+            'attendanceMethod': responseData['attendanceMethod'] ?? 'QR',
+          };
+        });
       } else {
-        final errorData = jsonDecode(attendanceResponse.body);
-        throw Exception(errorData['message'] ?? 'Lỗi khi chấm công');
+        throw Exception(responseData['message'] ?? 'Lỗi khi chấm công');
       }
     } catch (e) {
       setState(() {
         _errorMessage = e.toString();
+        _isProcessing = false;
+      });
+    } finally {
+      setState(() {
         _isProcessing = false;
       });
     }
