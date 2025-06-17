@@ -8,6 +8,7 @@ import 'package:sem4_fe/ui/User/Homeuser/Homeuser.dart';
 import 'package:sem4_fe/Service/Constants.dart';
 import 'package:sem4_fe/ui/login/screens/send_otp_screen.dart';
 import 'package:sem4_fe/ui/hr//home/HomeHr.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   final Function(String username, String password)? onLogin;
@@ -59,6 +60,10 @@ class _LoginScreenState extends State<LoginScreen> {
           );
           return;
         }
+
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', token);
+        print('Đã lưu token: $token');
 
         String role = '';
         try {
