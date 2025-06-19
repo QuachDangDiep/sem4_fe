@@ -148,9 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
       MaterialPageRoute(
         builder: (context) => QRScannerScreen(
           token: widget.token,
-          employeeId: userData?['id'] ?? 0, // Lấy ID nhân viên từ userData
-          latitude: 0.0, // Thay bằng vĩ độ thực tế
-          longitude: 0.0, // Thay bằng kinh độ thực tế
+          // employeeId: userData?['id'] ?? 0, // Lấy ID nhân viên từ userData
         ),
       ),
     ).then((result) {
