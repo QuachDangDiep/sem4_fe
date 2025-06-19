@@ -1,5 +1,5 @@
 class Constants {
-  static const String baseUrl = 'http://10.24.62.159:8080';
+  static const String baseUrl = 'http://10.24.14.194:8080';
 
   static const String loginUrl = '$baseUrl/api/auth/login';
   static const String homeUrl = '$baseUrl/api/users';
@@ -11,6 +11,8 @@ class Constants {
   static String searchQrCodeUrl(String code) => '$baseUrl/api/qrcodes/search?q=$code';
 
   static const String attendanceUrl = '$baseUrl/api/qrattendance/face';
+  static const String qrScanUrl = '$baseUrl/api/qrattendance';
+
 
   /// 🔽 API để lấy employeeId từ userId
   static String employeeIdByUserIdUrl(String userId) =>

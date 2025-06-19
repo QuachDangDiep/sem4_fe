@@ -1,22 +1,17 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:sem4_fe/Service/Constants.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-import 'package:sem4_fe/Service/Constants.dart';
 
 class QRScannerScreen extends StatefulWidget {
   final String token;
-  final int employeeId;
-  final double latitude;
-  final double longitude;
 
   const QRScannerScreen({
     Key? key,
     required this.token,
-    required this.employeeId,
-    required this.latitude,
-    required this.longitude,
   }) : super(key: key);
 
   @override
@@ -28,13 +23,39 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   bool _isSuccess = false;
   String? _errorMessage;
   Map<String, dynamic>? _attendanceData;
+  String? employeeId;
 
-  Map<String, String> _parseQRCode(String qrCode) {
-    final parts = qrCode.split('-');
-    return {
-      'code': parts.length > 0 ? parts[0] : '',
-      'location': parts.length > 5 ? parts[5] : 'Unknown',
-    };
+  @override
+  void initState() {
+    super.initState();
+    _loadEmployeeId(); // ← Lấy employeeId khi khởi tạo
+  }
+
+  Future<void> _loadEmployeeId() async {
+    try {
+      final token = widget.token;
+      final decodedToken = JwtDecoder.decode(token);
+      final userId = decodedToken['userId'];
+
+      final response = await http.get(
+        Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          employeeId = response.body; // trả về chuỗi UUID
+        });
+      } else {
+        throw Exception('Không lấy được employeeId từ userId');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Lỗi khi lấy employeeId: ${e.toString()}';
+      });
+    }
   }
 
   @override
@@ -54,7 +75,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               facing: CameraFacing.back,
             ),
             onDetect: (BarcodeCapture capture) {
-              if (_isProcessing || _isSuccess) return;
+              if (_isProcessing || _isSuccess || employeeId == null) return;
 
               final barcode = capture.barcodes.first;
               final qrCode = barcode.rawValue;
@@ -65,7 +86,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             },
           ),
 
-          // Overlay hướng dẫn
+          // UI như cũ
           Positioned(
             top: 100,
             left: 0,
@@ -75,8 +96,10 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                 Text(
                   _isProcessing
                       ? 'Đang xử lý...'
+                      : employeeId == null
+                      ? 'Đang tải mã nhân viên...'
                       : 'Quét mã QR tại đây',
-                  style: TextStyle(
+                  style: const TextStyle(
                     color: Colors.white,
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
@@ -85,33 +108,11 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                 if (_errorMessage != null)
                   Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.red[100],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Column(
-                        children: [
-                          const Icon(Icons.error_outline, color: Colors.red, size: 40),
-                          const SizedBox(height: 8),
-                          Text(
-                            _errorMessage!,
-                            style: const TextStyle(
-                              color: Colors.red,
-                              fontSize: 16,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                          const SizedBox(height: 8),
-                          ElevatedButton(
-                            onPressed: () => setState(() => _errorMessage = null),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                            ),
-                            child: const Text('THỬ LẠI'),
-                          ),
-                        ],
+                    child: Text(
+                      _errorMessage!,
+                      style: const TextStyle(
+                        color: Colors.red,
+                        fontSize: 16,
                       ),
                     ),
                   ),
@@ -119,7 +120,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             ),
           ),
 
-          // Khung quét QR
           Positioned.fill(
             child: IgnorePointer(
               child: CustomPaint(
@@ -128,7 +128,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             ),
           ),
 
-          // Nút đóng
           if (!_isProcessing)
             Positioned(
               bottom: 40,
@@ -140,7 +139,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
             ),
 
-          // Hiển thị khi xử lý thành công
           if (_isSuccess)
             Positioned.fill(
               child: Container(
@@ -149,11 +147,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Icon(
-                        Icons.check_circle,
-                        color: Colors.green,
-                        size: 80,
-                      ),
+                      const Icon(Icons.check_circle,
+                          color: Colors.green, size: 80),
                       const SizedBox(height: 20),
                       const Text(
                         'Chấm công thành công!',
@@ -175,14 +170,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                         const SizedBox(height: 10),
                         Text(
                           'Mã nhân viên: ${_attendanceData!['employeeId']}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Phương thức: ${_attendanceData!['attendanceMethod']}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -216,105 +203,60 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
-      _isSuccess = false;
-      _attendanceData = null;
     });
 
     try {
+      final token = widget.token;
 
-      // Phân tích mã QR
-      final qrData = _parseQRCode(qrCode);
-      print('Mã QR phân tích: ${qrData['code']}, Vị trí: ${qrData['location']}');
+      // ✅ Trích xuất UUID từ chuỗi QRCode dạng QR-<UUID>-<locationName>
+      final uuidRegex = RegExp(r'[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}');
+      final match = uuidRegex.firstMatch(qrCode);
+      if (match == null) throw Exception("QR không chứa UUID hợp lệ");
 
-      // ... (phần còn lại của hàm _processQRCode)
+      final qrInfoId = match.group(0); // UUID
 
-      // Khi hiển thị kết quả, có thể thêm thông tin vị trí
-      if (_isSuccess && _attendanceData != null) {
-        _attendanceData!['location'] = qrData['location'];
-      }
-      // Kiểm tra định dạng mã QR trước khi gửi
-      if (qrCode.isEmpty || !_isValidQRFormat(qrCode)) {
-        throw FormatException('Mã QR không đúng định dạng');
-      }
+      // ✅ Gọi API để kiểm tra QRInfo có tồn tại
+      final qrRes = await http.get(
+        Uri.parse("${Constants.baseUrl}/api/qrcodes/$qrInfoId"),
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
-      print('[DEBUG] Mã QR nhận được: $qrCode');
-
-      // 1. Kiểm tra mã QR
-      final qrCheckUri = Uri.parse(Constants.searchQrCodeUrl(qrCode));
-      print('[DEBUG] Gọi API kiểm tra QR: ${qrCheckUri.toString()}');
-
-      final qrCheckResponse = await http.get(
-        qrCheckUri,
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      print('[DEBUG] Phản hồi kiểm tra QR: ${qrCheckResponse.body}');
-
-      if (qrCheckResponse.statusCode != 200) {
-        final errorData = jsonDecode(qrCheckResponse.body);
-        throw Exception(errorData['message'] ?? 'Mã QR không hợp lệ');
+      if (qrRes.statusCode != 200) {
+        throw Exception('QR không hợp lệ hoặc không tìm thấy');
       }
 
-      // 2. Gửi dữ liệu chấm công
-      final attendanceUri = Uri.parse(Constants.attendanceUrl);
-      final requestBody = jsonEncode({
-        'employeeId': widget.employeeId,
-        'qrCode': qrCode,
-        'attendanceMethod': 'QR',
-        // Thêm các trường bắt buộc khác nếu cần
-        'location': 'Công ty FP1', // Thêm thông tin vị trí từ QR
-      });
-
-      print('[DEBUG] Gửi dữ liệu chấm công: $requestBody');
-
+      // ✅ Tiến hành gửi dữ liệu chấm công
       final attendanceResponse = await http.post(
-        attendanceUri,
+        Uri.parse(Constants.qrScanUrl),
         headers: {
-          'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
         },
-        body: requestBody,
-      ).timeout(const Duration(seconds: 10));
+        body: jsonEncode({
+          'employee': {
+            'employeeId': employeeId,
+          },
+          'qrInfo': {
+            'qrInfoId': qrInfoId, // ✅ Đã sửa từ 'qrId' → 'qrInfoId'
+          }
+        }),
+      );
 
-      final responseData = jsonDecode(attendanceResponse.body);
-      print('[DEBUG] Phản hồi chấm công: $responseData');
 
       if (attendanceResponse.statusCode == 200) {
-        // Kiểm tra các trường bắt buộc trong response
-        if (responseData['qrId'] == null ||
-            responseData['employeeId'] == null) {
-          throw Exception('Thiếu thông tin bắt buộc từ server');
-        }
-
         setState(() {
           _isSuccess = true;
           _attendanceData = {
-            'qrId': responseData['qrId'],
-            'employeeId': responseData['employeeId'].toString(),
-            'attendanceMethod': responseData['attendanceMethod'] ?? 'QR',
-            'location': responseData['location'] ?? 'Công ty FP1',
+            'employeeId': employeeId,
+            'qrId': qrInfoId,
           };
         });
       } else {
-        throw Exception(responseData['message'] ?? 'Lỗi khi chấm công');
+        throw Exception('Lỗi khi tạo bản ghi chấm công: ${attendanceResponse.body}');
       }
-    } on FormatException catch (e) {
-      setState(() {
-        _errorMessage = 'Lỗi định dạng: ${e.message}\nVui lòng quét lại mã QR';
-      });
-    } on http.ClientException catch (e) {
-      setState(() {
-        _errorMessage = 'Lỗi kết nối: ${e.message}\nKiểm tra mạng và thử lại';
-      });
     } catch (e) {
       setState(() {
-        _errorMessage = 'Lỗi: ${e
-            .toString()
-            .split('\n')
-            .first}';
+        _errorMessage = 'Lỗi: ${e.toString()}';
       });
     } finally {
       setState(() {
@@ -322,14 +264,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       });
     }
   }
-
-  bool _isValidQRFormat(String qrCode) {
-    // Thêm logic kiểm tra định dạng mã QR của bạn
-    // Ví dụ: mã QR phải chứa "Cong ty FP1"
-    return qrCode.contains('Cong ty FP1') && qrCode.length > 10;
-  }
 }
-class _QRScannerOverlay extends CustomPainter {
+
+  class _QRScannerOverlay extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.black54;
