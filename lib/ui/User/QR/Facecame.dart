@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
@@ -97,6 +99,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       if (mounted) setState(() => _showFlashEffect = false);
     });
 
+
     await Future.delayed(const Duration(seconds: 3));
 
     try {
@@ -118,9 +121,104 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
     }
   }
 
+  Future<Position> _getCurrentLocation() async {
+    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw Exception('Dịch vụ vị trí chưa được bật');
+    }
+
+    LocationPermission permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        throw Exception('Bạn đã từ chối quyền truy cập vị trí');
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      throw Exception('Bạn đã từ chối quyền truy cập vị trí vĩnh viễn');
+    }
+
+    return await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high);
+  }
+
+  Future<String?> _getEmployeeIdFromToken() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      if (token == null || token.isEmpty) {
+        throw Exception('Không tìm thấy token đăng nhập');
+      }
+
+      final Map<String, dynamic> decodedToken = JwtDecoder.decode(token);
+      final employeeId = decodedToken['employeeId'] ?? decodedToken['sub'];
+      if (employeeId == null) {
+        throw Exception('Không tìm thấy employeeId trong token');
+      }
+      return employeeId.toString();
+    } catch (e) {
+      throw Exception('Lỗi khi giải mã token: $e');
+
+    }
+  }
+
   Future<void> _sendImageToServer() async {
     if (_capturedImage == null) return;
     setState(() => _isUploading = true);
+
+    final uri = Uri.parse('${Constants.baseUrl}/api/qrattendance/face');
+
+    final bytes = await File(_capturedImage!.path).readAsBytes();
+    final base64Image = base64Encode(bytes);
+
+    try {
+      final employeeId = await _getEmployeeIdFromToken();
+      final position = await _getCurrentLocation();
+      final token = (await SharedPreferences.getInstance()).getString('auth_token');
+
+      final payload = {
+        "employeeId": employeeId,
+        "imageBase64": base64Image,
+        "latitude": position.latitude,
+        "longitude": position.longitude,
+      };
+
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(payload),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final jsonResponse = jsonDecode(response.body);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('🟢 Chấm công bằng khuôn mặt thành công!')),
+        );
+        Navigator.of(context).pop({
+          'status': 'success',
+          'time': DateTime.now().toIso8601String(),
+          'data': jsonResponse,
+          'message': 'Chấm công bằng khuôn mặt thành công'
+        });
+      } else {
+        String errorMessage = '🔴 Lỗi server: ${response.statusCode}';
+        if (response.body.isNotEmpty) {
+          try {
+            final errorJson = jsonDecode(response.body);
+            errorMessage += ' - ${errorJson['message'] ?? errorJson}';
+          } catch (_) {
+            errorMessage += ' - ${response.body}';
+          }
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -186,14 +284,6 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
-  }
-
-  void _retakePicture() {
-    setState(() {
-      _capturedImage = null;
-      _isFaceDetected = false;
-    });
-    _startFaceDetection();
   }
 
   @override
@@ -284,6 +374,20 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
             bottom: MediaQuery.of(context).size.height * 0.2,
             left: 0,
             right: 0,
+            child: const Text(
+              'ĐÃ PHÁT HIỆN KHUÔN MẶT',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.black,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
             child: const Column(
               children: [
                 Text(
@@ -339,12 +443,9 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       body: _isUploading
           ? const Center(child: CircularProgressIndicator())
           : (_isCameraInitialized
-          ? Column(
-        children: [
-          Expanded(child: _buildOverlayWithCameraOrImage()),
-          _buildBottomButtons(),
-        ],
-      )
+          ? Column(children: [
+        Expanded(child: _buildOverlayWithCameraOrImage()),
+      ])
           : const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,

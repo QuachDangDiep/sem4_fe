@@ -227,7 +227,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        userData!['position'] ?? 'Cộng tác viên kinh doanh',
+                        userData!['positionName'] ?? 'Cộng tác viên kinh doanh',
                         style: const TextStyle(
                           fontSize: 14,
                           color: Colors.grey,
