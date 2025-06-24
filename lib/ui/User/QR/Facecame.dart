@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:sem4_fe/Service/Constants.dart';
@@ -30,7 +32,23 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
   @override
   void initState() {
     super.initState();
-    _initializeCamera();
+    _requestPermissionsAndInitializeCamera();
+  }
+
+  Future<void> _requestPermissionsAndInitializeCamera() async {
+    try {
+      final locationPermission = await Geolocator.requestPermission();
+      if (locationPermission == LocationPermission.denied ||
+          locationPermission == LocationPermission.deniedForever) {
+        throw Exception('Không có quyền truy cập vị trí');
+      }
+      await _initializeCamera();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi quyền hoặc camera: $e')),
+      );
+    }
   }
 
   Future<void> _initializeCamera() async {
@@ -41,6 +59,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       );
 
       _controller = CameraController(frontCamera, ResolutionPreset.medium);
+
       _initializeControllerFuture = _controller!.initialize().then((_) {
         if (!mounted) return;
         setState(() => _isCameraInitialized = true);
@@ -80,6 +99,9 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       if (mounted) setState(() => _showFlashEffect = false);
     });
 
+
+    await Future.delayed(const Duration(seconds: 3));
+
     try {
       await _initializeControllerFuture;
       final image = await _controller!.takePicture();
@@ -87,6 +109,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
 
       setState(() => _capturedImage = image);
       _faceDetectionTimer?.cancel();
+
       await _sendImageToServer();
     } catch (e) {
       if (!mounted) return;
@@ -136,12 +159,12 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       return employeeId.toString();
     } catch (e) {
       throw Exception('Lỗi khi giải mã token: $e');
+
     }
   }
 
   Future<void> _sendImageToServer() async {
     if (_capturedImage == null) return;
-
     setState(() => _isUploading = true);
 
     final uri = Uri.parse('${Constants.baseUrl}/api/qrattendance/face');
@@ -196,11 +219,67 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(errorMessage)),
         );
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      if (token == null) throw Exception('Token không tồn tại');
+
+      final decoded = JwtDecoder.decode(token);
+      final userId = decoded['userId']?.toString()
+          ?? decoded['sub']?.toString(); // fallback
+      if (userId == null) throw Exception('Không tìm thấy userId trong token');
+
+
+      final employeeResponse = await http.get(
+        Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (employeeResponse.statusCode != 200) {
+        throw Exception('Không lấy được employeeId');
+      }
+
+      final employeeId = employeeResponse.body;
+
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final imageBytes = await File(_capturedImage!.path).readAsBytes();
+      final base64Image = base64Encode(imageBytes);
+
+      final response = await http.post(
+        Uri.parse(Constants.attendanceUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'employeeId': employeeId,
+          'imageBase64': base64Image,
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+        }),
+      );
+
+      if (!mounted) return;
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('✅ Chấm công thành công!')),
+        );
+        Navigator.of(context).pop({'status': 'success'});
+      } else {
+        final message = response.body.isNotEmpty
+            ? jsonDecode(response.body)['message'] ?? 'Lỗi không rõ'
+            : 'Lỗi server';
+        throw Exception(message);
       }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Lỗi gửi ảnh: $e')),
+        SnackBar(content: Text('❌ Lỗi gửi dữ liệu: $e')),
       );
     } finally {
       if (mounted) setState(() => _isUploading = false);
@@ -213,7 +292,6 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
     _controller?.dispose();
     super.dispose();
   }
-
   Widget _buildOverlayWithCameraOrImage() {
     final double size = MediaQuery.of(context).size.width * 0.8;
 
@@ -307,6 +385,45 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
             ),
           ),
       ],
+    );
+  }
+
+            child: const Column(
+              children: [
+                Text(
+                  'ĐÃ PHÁT HIỆN KHUÔN MẶT',
+                  style: TextStyle(
+                    color: Colors.black,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildBottomButtons() {
+    if (_capturedImage == null) return const SizedBox();
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          ElevatedButton.icon(
+            onPressed: _retakePicture,
+            icon: const Icon(Icons.camera_alt),
+            label: const Text('Chụp lại'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+          ),
+        ],
+      ),
     );
   }
 

@@ -3,8 +3,8 @@ class Constants{
 
   static const String baseUrl = 'http://10.0.2.2:8080';
 
-  static const String loginUrl = '$baseUrl/api/auth/login';
 
+  static const String loginUrl = '$baseUrl/api/auth/login';
   static const String homeUrl = '$baseUrl/api/users';
 
   static const String sendotpUrl = '$baseUrl/api/password-reset/send-otp';
@@ -26,4 +26,5 @@ class Constants{
   static const String dancesUrl = '$baseUrl/api/attendances';
 
   static String summaryUrl(String formattedDate) => '$baseUrl/api/attendances/summary?date=$formattedDate';
+
 }
