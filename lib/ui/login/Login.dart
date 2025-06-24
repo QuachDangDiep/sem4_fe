@@ -7,7 +7,8 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:sem4_fe/ui/User/Homeuser/Homeuser.dart';
 import 'package:sem4_fe/Service/Constants.dart';
 import 'package:sem4_fe/ui/login/screens/send_otp_screen.dart';
-import 'package:sem4_fe/ui/hr/home/HomeHr.dart';
+import 'package:sem4_fe/ui/hr//home/HomeHr.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   final Function(String username, String password)? onLogin;
@@ -21,27 +22,10 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  final FocusNode _usernameFocus = FocusNode();
-  final FocusNode _passwordFocus = FocusNode();
 
   bool _isLoading = false;
+  bool _rememberMe = false;
   bool _obscurePassword = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _usernameFocus.addListener(() => setState(() {}));
-    _passwordFocus.addListener(() => setState(() {}));
-  }
-
-  @override
-  void dispose() {
-    _usernameController.dispose();
-    _passwordController.dispose();
-    _usernameFocus.dispose();
-    _passwordFocus.dispose();
-    super.dispose();
-  }
 
   Future<void> _login() async {
     final username = _usernameController.text.trim();
@@ -57,12 +41,14 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
 
     try {
+      print('[DEBUG] Đang kết nối đến: ${Constants.loginUrl}'); // Thêm dòng debug này
       final response = await http.post(
         Uri.parse(Constants.loginUrl),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'username': username, 'password': password}),
-      ).timeout(const Duration(seconds: 10)); // Thêm timeout 10 giây
+      ).timeout(const Duration(seconds: 10));
 
+      print('[DEBUG] Phản hồi từ server: ${response.statusCode}'); // Thêm dòng debug này
       final data = jsonDecode(response.body);
       print('API Full Response: $data');
 
@@ -75,22 +61,22 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
-        // Lấy role từ token hoặc response
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('auth_token', token);
+        print('Đã lưu token: $token');
+
         String role = '';
         try {
-          // Ưu tiên lấy role từ JWT token nếu có
           final decodedToken = JwtDecoder.decode(token);
           role = (decodedToken['role']?.toString() ?? '').toLowerCase();
           print('Decoded role from token: $role');
         } catch (e) {
           print('Không thể decode token: $e');
-          // Fallback: lấy role từ response
           role = data['result']['role']?.toString().trim().toLowerCase() ?? '';
         }
 
         print('Final determined role: $role');
 
-        // Chuyển hướng theo role
         if (role == 'hr') {
           Navigator.pushReplacement(
             context,
@@ -99,7 +85,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           );
         } else {
-          // Mặc định chuyển đến trang user
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -114,22 +99,38 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } on TimeoutException {
+      print('[DEBUG] Lỗi timeout khi kết nối đến server'); // Thêm debug
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Server không phản hồi. Vui lòng thử lại sau')),
       );
-    } on SocketException {
+    } on SocketException catch (e) {
+      print('[DEBUG] Lỗi kết nối Socket: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không thể kết nối đến server. Kiểm tra mạng')),
+        SnackBar( // Bỏ const ở đây
+          content: Text('Không thể kết nối đến server. Đảm bảo:'),
+          duration: Duration(seconds: 5),
+          action: SnackBarAction(
+            label: 'XEM',
+            onPressed: () {
+              // Thêm hành động khi nhấn nút XEM
+              print('Người dùng nhấn XEM để xem chi tiết lỗi');
+            },
+          ),
+        ),
       );
     } catch (e, stackTrace) {
-      print('Lỗi đăng nhập chi tiết: $e\n$stackTrace');
+      print('[DEBUG] Lỗi không xác định: $e\n$stackTrace'); // Thêm debug
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi: ${e.toString().split('\n').first}')),
+        SnackBar(
+          content: Text('Lỗi: ${e.toString().split('\n').first}'),
+          duration: Duration(seconds: 5),
+        ),
       );
     } finally {
       setState(() => _isLoading = false);
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -202,8 +203,8 @@ class _LoginScreenState extends State<LoginScreen> {
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                color: const Color(0xFFFF9800),
-                                width: 2,
+                                color: const Color(0xFFFF9800), // màu viền cam
+                                width: 2, // độ dày viền
                               ),
                               boxShadow: [
                                 BoxShadow(
@@ -218,41 +219,33 @@ class _LoginScreenState extends State<LoginScreen> {
                               constraints: const BoxConstraints(maxWidth: 350),
                               child: Column(
                                 children: [
-                                TextField(
-                                controller: _usernameController,
-                                focusNode: _usernameFocus,
-                                decoration: InputDecoration(
-                                  labelText: 'Username',
-                                  hintText: 'Enter your username',
-                                  labelStyle: const TextStyle(color: Colors.grey),
-                                  prefixIcon: const Icon(Icons.person, color: Colors.grey),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                                  TextField(
+                                    controller: _usernameController,
+                                    decoration: InputDecoration(
+                                      labelText: 'Username',
+                                      hintText: 'Enter your username',
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      prefixIcon: const Icon(Icons.person),
+                                    ),
                                   ),
-                                  enabledBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Colors.grey),
-                                  ),
-                                  focusedBorder: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                    borderSide: const BorderSide(color: Color(0xFFFF9800), width: 2), // viền cam khi focus
-                                  ),
-                                ),
-                              ),
                                   const SizedBox(height: 25),
                                   TextField(
                                     controller: _passwordController,
-                                    focusNode: _passwordFocus,
                                     obscureText: _obscurePassword,
                                     decoration: InputDecoration(
                                       labelText: 'Password',
                                       hintText: 'Enter your password',
-                                      labelStyle: const TextStyle(color: Colors.grey),
-                                      prefixIcon: const Icon(Icons.lock, color: Colors.grey),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      prefixIcon: const Icon(Icons.lock),
                                       suffixIcon: IconButton(
                                         icon: Icon(
-                                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                                          color: Colors.grey,
+                                          _obscurePassword
+                                              ? Icons.visibility
+                                              : Icons.visibility_off,
                                         ),
                                         onPressed: () {
                                           setState(() {
@@ -260,46 +253,49 @@ class _LoginScreenState extends State<LoginScreen> {
                                           });
                                         },
                                       ),
-                                      border: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      enabledBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Colors.grey),
-                                      ),
-                                      focusedBorder: OutlineInputBorder(
-                                        borderRadius: BorderRadius.circular(12),
-                                        borderSide: const BorderSide(color: Color(0xFFFF9800), width: 2), // viền cam khi focus
-                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: TextButton(
-                                      onPressed: () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) =>
-                                            const SendOtpScreen(),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Checkbox(
+                                            value: _rememberMe,
+                                            onChanged: (value) {
+                                              setState(() {
+                                                _rememberMe = value ?? false;
+                                              });
+                                            },
                                           ),
-                                        );
-                                      },
-                                      style: TextButton.styleFrom(
-                                        padding: EdgeInsets.zero,
-                                        minimumSize: const Size(50, 30),
-                                        tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
+                                          const Text('Remember me'),
+                                        ],
                                       ),
-                                      child: const Text(
-                                        'Forgot Password?',
-                                        style: TextStyle(
-                                          color: Color(0xFFFF9800),
-                                          fontWeight: FontWeight.bold,
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => const SendOtpScreen(),
+                                            ),
+                                          );
+                                        },
+                                        style: TextButton.styleFrom(
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: const Size(50, 30),
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        child: const Text(
+                                          'Forgot Password?',
+                                          style: TextStyle(
+                                            color: Color(0xFFFF9800),
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
                                       ),
-                                    ),
+                                    ],
                                   ),
                                   const SizedBox(height: 24),
                                   SizedBox(
@@ -308,11 +304,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                     child: ElevatedButton(
                                       onPressed: _isLoading ? null : _login,
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor:
-                                        const Color(0xFFFF9800),
+                                        backgroundColor: const Color(0xFFFF9800),
                                         shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                          BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(12),
                                         ),
                                       ),
                                       child: _isLoading

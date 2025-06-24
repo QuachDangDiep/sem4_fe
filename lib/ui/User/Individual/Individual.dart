@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sem4_fe/ui/login/Login.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/WorkSchedule.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'Navbar/Attendance.dart';
+import 'Navbar/Information.dart';
 class PersonalPage extends StatelessWidget {
   const PersonalPage({Key? key}) : super(key: key);
 
@@ -71,16 +75,86 @@ class PersonalPage extends StatelessWidget {
         ),
         body: ListView(
           children: [
-            buildMenuItem('Thông tin cá nhân', Icons.person, () {},
-                backgroundColor: Colors.orange),
+            buildMenuItem('Thông tin cá nhân', Icons.person, () async {
+              try {
+                // Lấy token từ SharedPreferences
+                final prefs = await SharedPreferences.getInstance();
+                final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
+
+                if (token == null || token.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Vui lòng đăng nhập lại')),
+                  );
+                  return;
+                }
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PersonalInfoScreen(token: token),
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+                );
+              }
+            }, backgroundColor: Colors.orange),
             buildMenuItem('Lịch sử chấm công', Icons.history, () {},
                 backgroundColor: Colors.blue),
-            buildMenuItem('Xếp ca làm việc', Icons.schedule, () {},
+            buildMenuItem('Xếp ca làm việc', Icons.schedule, () async {
+              try {
+                // Lấy token từ SharedPreferences
+                final prefs = await SharedPreferences.getInstance();
+                final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
+
+                if (token == null || token.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Vui lòng đăng nhập lại')),
+                  );
+                  return;
+                }
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => WorkScheduleScreen(token: token),
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+                );
+              }
+            },
                 backgroundColor: Colors.deepPurple),
             buildMenuItem('Chấm công hộ', Icons.assignment_ind, () {},
                 backgroundColor: Colors.indigo),
-            buildMenuItem('Bảng công', Icons.grid_on, () {},
-                backgroundColor: Colors.cyan),
+            buildMenuItem('Bảng công', Icons.grid_on, () async {
+              try {
+                // Lấy token từ SharedPreferences
+                final prefs = await SharedPreferences.getInstance();
+                final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
+
+                if (token == null || token.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Vui lòng đăng nhập lại')),
+                  );
+                  return;
+                }
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => AttendanceSummaryScreen(token: token),
+                  ),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+                );
+              }
+            }, backgroundColor: Colors.cyan),
             buildMenuItem('Bảng phép, thâm niên', Icons.event_note, () {},
                 backgroundColor: Colors.lightBlue),
             buildMenuItem('Phiếu lương', Icons.attach_money, () {},
