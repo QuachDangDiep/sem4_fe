@@ -64,7 +64,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Quét mã QR chấm công'),
-        backgroundColor: Colors.blue[800],
+        backgroundColor:  Colors.orange,
         elevation: 0,
       ),
       body: Stack(
@@ -127,17 +127,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
             ),
           ),
-
-          if (!_isProcessing)
-            Positioned(
-              bottom: 40,
-              right: 20,
-              child: FloatingActionButton(
-                onPressed: () => Navigator.pop(context),
-                backgroundColor: Colors.red,
-                child: const Icon(Icons.close),
-              ),
-            ),
 
           if (_isSuccess)
             Positioned.fill(
@@ -271,7 +260,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.black54;
     final borderPaint = Paint()
-      ..color = Colors.blue
+      ..color = Colors.white
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke;
 
@@ -291,10 +280,11 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
     // Vẽ khung QR
     canvas.drawRect(innerRect, borderPaint);
 
+
     // Vẽ góc vuông
     final cornerLength = 30.0;
     final cornerPaint = Paint()
-      ..color = Colors.green
+      ..color = Colors.orange
       ..strokeWidth = 6
       ..style = PaintingStyle.stroke;
 
