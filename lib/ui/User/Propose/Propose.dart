@@ -36,9 +36,7 @@ class ProposalPage extends StatelessWidget {
           children: [
             buildProposalItem('Đăng ký nghỉ', Icons.airline_seat_individual_suite, Colors.orange, () async {
               try {
-                // Lấy token từ SharedPreferences
                 final prefs = await SharedPreferences.getInstance();
-                final employeeId = prefs.getString('employee_id');
                 final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
 
                 if (token == null || token.isEmpty) {
@@ -47,11 +45,12 @@ class ProposalPage extends StatelessWidget {
                   );
                   return;
                 }
+                print('===> token trong SharedPreferences: $token');
 
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => LeaveRegistrationPage(token: token, employeeId: employeeId ?? ''),
+                    builder: (context) => LeaveRegistrationPage(token: token),
                   ),
                 );
               } catch (e) {
