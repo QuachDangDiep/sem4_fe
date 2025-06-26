@@ -64,7 +64,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Quét mã QR chấm công'),
-        backgroundColor:  Colors.orange,
+        backgroundColor: Colors.orange,
         elevation: 0,
       ),
       body: Stack(
@@ -128,6 +128,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             ),
           ),
 
+
+
           if (_isSuccess)
             Positioned.fill(
               child: Container(
@@ -150,15 +152,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                       if (_attendanceData != null) ...[
                         const SizedBox(height: 20),
                         Text(
-                          'Mã QR: ${_attendanceData!['qrId']}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Mã nhân viên: ${_attendanceData!['employeeId']}',
+                          'Lượt chấm công hôm nay: ${_attendanceData!['count'] ?? 1}/2',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -233,11 +227,18 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
 
       if (attendanceResponse.statusCode == 200) {
+        final data = jsonDecode(attendanceResponse.body);
+
+        final count = data['count'] ?? 1;
+        if (count > 2) {
+          throw Exception("Bạn đã chấm công 2 lần trong ngày. Không thể chấm thêm.");
+        }
         setState(() {
           _isSuccess = true;
           _attendanceData = {
             'employeeId': employeeId,
             'qrId': qrInfoId,
+            'count': count,
           };
         });
       } else {
@@ -255,7 +256,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 }
 
-  class _QRScannerOverlay extends CustomPainter {
+class _QRScannerOverlay extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.black54;
@@ -279,7 +280,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
     // Vẽ khung QR
     canvas.drawRect(innerRect, borderPaint);
-
 
     // Vẽ góc vuông
     final cornerLength = 30.0;
