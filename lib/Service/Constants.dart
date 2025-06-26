@@ -14,6 +14,7 @@ class Constants{
   static String searchQrCodeUrl(String code) => '$baseUrl/api/qrcodes/search?q=$code';
   static const String attendanceUrl = '$baseUrl/api/qrattendance/face';
   static const String workScheduleUrl = '$baseUrl/api/work-schedules';
+  static const String qrScanUrl = '$baseUrl/api/qrattendance';
 
   // infomation
   static String employeeIdByUserIdUrl(String userId) =>
