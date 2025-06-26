@@ -21,6 +21,7 @@ class QRScannerScreen extends StatefulWidget {
 class _QRScannerScreenState extends State<QRScannerScreen> {
   bool _isProcessing = false;
   bool _isSuccess = false;
+  bool hasCheckedInToday = false;
   String? _errorMessage;
   Map<String, dynamic>? _attendanceData;
   String? employeeId;
@@ -128,8 +129,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             ),
           ),
 
-
-
           if (_isSuccess)
             Positioned.fill(
               child: Container(
@@ -152,7 +151,15 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                       if (_attendanceData != null) ...[
                         const SizedBox(height: 20),
                         Text(
-                          'Lượt chấm công hôm nay: ${_attendanceData!['count'] ?? 1}/2',
+                          'Mã QR: ${_attendanceData!['qrId']}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'Mã nhân viên: ${_attendanceData!['employeeId']}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -227,18 +234,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
 
       if (attendanceResponse.statusCode == 200) {
-        final data = jsonDecode(attendanceResponse.body);
-
-        final count = data['count'] ?? 1;
-        if (count > 2) {
-          throw Exception("Bạn đã chấm công 2 lần trong ngày. Không thể chấm thêm.");
-        }
         setState(() {
           _isSuccess = true;
+          hasCheckedInToday = true;
           _attendanceData = {
             'employeeId': employeeId,
             'qrId': qrInfoId,
-            'count': count,
           };
         });
       } else {

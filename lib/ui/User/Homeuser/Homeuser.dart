@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import 'package:sem4_fe/ui/User//Individual/Individual.dart';
 import 'package:sem4_fe/ui/User//Notification/Notification.dart';
 import 'package:sem4_fe/ui/User//Propose/Propose.dart';
-import 'package:intl/intl.dart';
 import 'package:sem4_fe/ui/User/QR/Qrscanner.dart';
 import 'package:sem4_fe/Service/Constants.dart';
 import 'package:sem4_fe/ui/User/QR/Facecame.dart';
@@ -29,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Map<String, dynamic>? lastCheckInData;
   bool hasCheckedInToday = false;
+  bool _isSuccess = false;
 
   @override
   void initState() {
@@ -38,7 +38,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> fetchUserInfo() async {
     try {
-      final response = await http.get(Uri.parse(Constants.homeUrl),
+      final response = await http.get(
+        Uri.parse('${Constants.baseUrl}/api/users/native'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${widget.token}',
@@ -50,6 +51,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (responseData['result'] != null) {
           List users = responseData['result'];
+
+          // Tìm user theo username
           final user = users.firstWhere(
                 (u) => u['username'] == widget.username,
             orElse: () => null,
@@ -73,12 +76,6 @@ class _HomeScreenState extends State<HomeScreen> {
         SnackBar(content: Text('Lỗi khi tải người dùng: $e')),
       );
     }
-  }
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
   }
 
   void showCheckInOptions() {
@@ -153,11 +150,13 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     ).then((result) {
       if (result == true) {
-        // Xử lý khi chấm công thành công
+        setState(() {
+          _isSuccess = true; // ✅ Thêm dòng này
+          hasCheckedInToday = true;
+        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Chấm công thành công!')),
         );
-        // Có thể gọi lại fetchUserInfo để cập nhật trạng thái
         fetchUserInfo();
       }
     });
@@ -314,51 +313,53 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 16),
 
-            // 2 phần chấm công khác nằm ngang
-            Row(
-              children: [
-                Expanded(
-                  child: _buildQRAction(
-                    icon: Icons.access_time_filled,
-                    text: "Chấm công làm thêm giờ",
-                    color: const Color(0xFFF29F05),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _buildQRAction(
-                    icon: Icons.shield_moon,
-                    text: "Chấm công trực ca / trực gác",
-                    color: const Color(0xFF007B83),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // Trạng thái
             // Thay thế phần "Trạng thái" hiện tại bằng:
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: hasCheckedInToday ? Colors.green.shade100 : Colors.orange.shade100,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  hasCheckedInToday
-                      ? "Hôm nay bạn đã chấm công"
-                      : "Hôm nay bạn chưa chấm công",
-                  style: TextStyle(
-                    color: hasCheckedInToday ? Colors.green.shade800 : Colors.orange.shade800,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+            if (_isSuccess)
+              Positioned.fill(
+                child: Container(
+                  color: Colors.black.withOpacity(0.7),
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(16),
+                          margin: const EdgeInsets.symmetric(horizontal: 20),
+                          decoration: BoxDecoration(
+                            color: hasCheckedInToday ? Colors.green.shade100 : Colors.orange.shade100,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: Text(
+                              hasCheckedInToday
+                                  ? "Hôm nay bạn đã chấm công"
+                                  : "Hôm nay bạn chưa chấm công",
+                              style: TextStyle(
+                                color: hasCheckedInToday ? Colors.green.shade800 : Colors.orange.shade800,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
+                          ),
+                          child: const Text(
+                            'ĐÓNG',
+                            style: TextStyle(fontSize: 18),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -399,86 +400,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCheckInInfo() {
-    if (lastCheckInData == null) return SizedBox();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(8),
-        color: Colors.white,
-      ),
-      margin: const EdgeInsets.only(bottom: 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            "Thông tin chấm công gần nhất",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 16,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Ngày", style: TextStyle(color: Colors.grey)),
-                  Text(
-                    DateFormat('dd/MM/yyyy').format(DateTime.parse(lastCheckInData!['createdAt'])),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Giờ", style: TextStyle(color: Colors.grey)),
-                  Text(
-                    DateFormat('HH:mm').format(DateTime.parse(lastCheckInData!['createdAt'])),
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Ca làm", style: TextStyle(color: Colors.grey)),
-                  Text(
-                    lastCheckInData!['shift'] ?? 'Không xác định',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text("Phương thức", style: TextStyle(color: Colors.grey)),
-                  const Text(
-                    "QR Code",
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ],
-          )
-        ],
-      ),
-    );
-  }
-
   Widget _buildCheckInOption({
     required IconData icon,
     required String title,
@@ -509,34 +430,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-
-  Widget _buildNotificationPage() {
-    return const Center(
-      child: Text(
-        "Thông báo",
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-
-  Widget _buildSuggestionPage() {
-    return const Center(
-      child: Text(
-        "Đề xuất",
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-      ),
-    );
-  }
-
-  Widget _buildProfilePage() {
-    return const Center(
-      child: Text(
-        "Tài khoản",
-        style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
       ),
     );
   }

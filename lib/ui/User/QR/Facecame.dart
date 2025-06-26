@@ -26,11 +26,43 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
   bool _isFaceDetected = false;
   bool _isCapturing = false;
   bool _showFlashEffect = false;
+  bool _hasCheckedIn = false;
+  bool _hasCheckedOut = false;
+  String? _lastAttendanceDate;
 
   @override
   void initState() {
     super.initState();
-    _requestPermissionsAndInitializeCamera();
+    _loadAttendanceStatus();
+  }
+
+  Future<void> _loadAttendanceStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentDate = DateTime.now().toIso8601String().split('T')[0]; // YYYY-MM-DD
+    final storedDate = prefs.getString('lastAttendanceDate');
+
+    if (storedDate != currentDate) {
+      // New day, reset status
+      await prefs.setBool('hasCheckedIn', false);
+      await prefs.setBool('hasCheckedOut', false);
+      await prefs.setString('lastAttendanceDate', currentDate);
+      setState(() {
+        _hasCheckedIn = false;
+        _hasCheckedOut = false;
+        _lastAttendanceDate = currentDate;
+      });
+    } else {
+      // Same day, load status
+      setState(() {
+        _hasCheckedIn = prefs.getBool('hasCheckedIn') ?? false;
+        _hasCheckedOut = prefs.getBool('hasCheckedOut') ?? false;
+        _lastAttendanceDate = storedDate;
+      });
+    }
+
+    if (!_hasCheckedIn || !_hasCheckedOut) {
+      await _requestPermissionsAndInitializeCamera();
+    }
   }
 
   Future<void> _requestPermissionsAndInitializeCamera() async {
@@ -149,6 +181,9 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       final imageBytes = await File(_capturedImage!.path).readAsBytes();
       final base64Image = base64Encode(imageBytes);
 
+      // Determine check-in or check-out
+      final String attendanceType = _hasCheckedIn ? 'checkout' : 'checkin';
+
       final response = await http.post(
         Uri.parse(Constants.attendanceUrl),
         headers: {
@@ -160,16 +195,26 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
           'imageBase64': base64Image,
           'latitude': position.latitude,
           'longitude': position.longitude,
+          'type': attendanceType, // Add type field
         }),
       );
 
       if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
+        // Update attendance status
+        if (attendanceType == 'checkin') {
+          await prefs.setBool('hasCheckedIn', true);
+          setState(() => _hasCheckedIn = true);
+        } else {
+          await prefs.setBool('hasCheckedOut', true);
+          setState(() => _hasCheckedOut = true);
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Chấm công thành công!')),
+          SnackBar(content: Text('✅ Chấm công ${attendanceType == 'checkin' ? 'vào' : 'ra'} thành công!')),
         );
-        Navigator.of(context).pop({'status': 'success'});
+        Navigator.of(context).pop({'status': 'success', 'type': attendanceType});
       } else {
         final message = response.body.isNotEmpty
             ? jsonDecode(response.body)['message'] ?? 'Lỗi không rõ'
@@ -256,15 +301,23 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
               decoration: BoxDecoration(
                 border: Border.all(
                   color: _capturedImage != null ? Colors.orange : Colors.grey,
-                  width: 4,
+                  width: 6, // Thicker border
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.3),
+                    spreadRadius: 2,
+                    blurRadius: 8,
+                    offset: const Offset(0, 4), // Shadow for prominence
+                  ),
+                ],
               ),
             ),
           ),
         ),
         if (_isFaceDetected && !_isCapturing && _capturedImage == null)
           Positioned(
-            bottom: MediaQuery.of(context).size.height * 0.2,
+            bottom: MediaQuery.of(context).size.height * 0.1, // Lower position
             left: 0,
             right: 0,
             child: const Column(
@@ -329,6 +382,56 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (_hasCheckedIn && _hasCheckedOut) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          title: const Text('Chấm công bằng khuôn mặt'),
+          backgroundColor: Colors.orange[500],
+          elevation: 0,
+          iconTheme: const IconThemeData(color: Colors.white),
+          titleTextStyle: const TextStyle(
+            color: Colors.white,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+          titleSpacing: -5,
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.check_circle,
+                color: Colors.green,
+                size: 100,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Bạn đã hoàn thành chấm công trong ngày hôm nay',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                ),
+                child: const Text('Quay lại'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -337,9 +440,10 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         titleTextStyle: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold),
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
         titleSpacing: -5,
       ),
       body: _isUploading
