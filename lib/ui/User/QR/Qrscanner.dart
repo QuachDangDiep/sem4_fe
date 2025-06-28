@@ -21,7 +21,6 @@ class QRScannerScreen extends StatefulWidget {
 class _QRScannerScreenState extends State<QRScannerScreen> {
   bool _isProcessing = false;
   bool _isSuccess = false;
-  bool hasCheckedInToday = false;
   String? _errorMessage;
   Map<String, dynamic>? _attendanceData;
   String? employeeId;
@@ -65,7 +64,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Quét mã QR chấm công'),
-        backgroundColor: Colors.orange,
+        backgroundColor: Colors.blue[800],
         elevation: 0,
       ),
       body: Stack(
@@ -128,6 +127,17 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
             ),
           ),
+
+          if (!_isProcessing)
+            Positioned(
+              bottom: 40,
+              right: 20,
+              child: FloatingActionButton(
+                onPressed: () => Navigator.pop(context),
+                backgroundColor: Colors.red,
+                child: const Icon(Icons.close),
+              ),
+            ),
 
           if (_isSuccess)
             Positioned.fill(
@@ -236,7 +246,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       if (attendanceResponse.statusCode == 200) {
         setState(() {
           _isSuccess = true;
-          hasCheckedInToday = true;
           _attendanceData = {
             'employeeId': employeeId,
             'qrId': qrInfoId,
@@ -257,12 +266,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 }
 
-class _QRScannerOverlay extends CustomPainter {
+  class _QRScannerOverlay extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.black54;
     final borderPaint = Paint()
-      ..color = Colors.white
+      ..color = Colors.blue
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke;
 
@@ -285,7 +294,7 @@ class _QRScannerOverlay extends CustomPainter {
     // Vẽ góc vuông
     final cornerLength = 30.0;
     final cornerPaint = Paint()
-      ..color = Colors.orange
+      ..color = Colors.green
       ..strokeWidth = 6
       ..style = PaintingStyle.stroke;
 
