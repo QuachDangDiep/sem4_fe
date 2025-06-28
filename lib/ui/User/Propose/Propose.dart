@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:sem4_fe/ui/User/Propose/Navbar/LeaveRegistration.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'Navbar/LeaveRegistration.dart';
 
 class ProposalPage extends StatelessWidget {
   const ProposalPage({Key? key}) : super(key: key);
@@ -20,54 +19,50 @@ class ProposalPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: ThemeData(useMaterial3: false), // Tắt Material 3 cho riêng trang này
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          title: const Text('Đề xuất',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          backgroundColor: Colors.orange,
-          centerTitle: true,
+    return Scaffold(
+      backgroundColor: Colors.white,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        title: const Text(
+          'Đề xuất',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
-        body: ListView(
-          padding: const EdgeInsets.only(top: kToolbarHeight + 24),
-          children: [
-            buildProposalItem('Đăng ký nghỉ', Icons.airline_seat_individual_suite, Colors.orange, () async {
-              try {
-                final prefs = await SharedPreferences.getInstance();
-                final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
+        backgroundColor: Colors.orange,
+        centerTitle: true,
+      ),
+      body: ListView(
+        children: [
+          buildProposalItem('Đăng ký nghỉ', Icons.airline_seat_individual_suite, Colors.orange, () async {
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
 
-                if (token == null || token.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Vui lòng đăng nhập lại')),
-                  );
-                  return;
-                }
-                print('===> token trong SharedPreferences: $token');
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => LeaveRegistrationPage(token: token),
-                  ),
-                );
-              } catch (e) {
+              if (token == null || token.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+                  SnackBar(content: Text('Vui lòng đăng nhập lại')),
                 );
+                return;
               }
+              print('===> token trong SharedPreferences: $token');
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => LeaveRegistrationPage(token: token),
+                ),
+              );
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+              );
             }
-            ),
-            buildProposalItem('Đi muộn về sớm', Icons.access_time, Colors.green, () {}),
-            buildProposalItem('Làm thêm giờ', Icons.calculate, Colors.blue, () {}),
-            buildProposalItem('Làm việc ngoài công ty, công tác', Icons.group_work, Colors.purple, () {}),
-            buildProposalItem('Giải trình chấm công', Icons.note_alt, Colors.deepOrange, () {}),
-            buildProposalItem('Đổi ca', Icons.sync_alt, Colors.green, () {}),
-            buildProposalItem('Đăng ký ra ngoài', Icons.double_arrow, Colors.indigo, () {}),
-          ],
-        ),
+          }
+          ),
+          buildProposalItem('Làm thêm giờ', Icons.calculate, Colors.blue, () {}),
+          buildProposalItem('Giải trình chấm công', Icons.note_alt, Colors.deepOrange, () {}),
+          buildProposalItem('Đổi ca', Icons.sync_alt, Colors.green, () {}),
+          buildProposalItem('Đăng ký ra ngoài', Icons.double_arrow, Colors.indigo, () {}),
+        ],
       ),
     );
   }

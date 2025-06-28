@@ -154,7 +154,23 @@ class _LeaveRegistrationPageState extends State<LeaveRegistrationPage> {
       initialDate: _selectedStartDate ?? DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime(DateTime.now().year + 1),
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Colors.orange, // màu cam cho AppBar và ngày được chọn
+              onPrimary: Colors.white, // màu chữ trắng trên AppBar
+              onSurface: Colors.black, // màu chữ ngày thường
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(foregroundColor: Colors.orange), // nút "OK", "HỦY"
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
+
     if (picked != null && picked != _selectedStartDate) {
       setState(() {
         _selectedStartDate = picked;
@@ -173,14 +189,29 @@ class _LeaveRegistrationPageState extends State<LeaveRegistrationPage> {
       initialDate: _selectedEndDate ?? _selectedStartDate!,
       firstDate: _selectedStartDate!,
       lastDate: DateTime(DateTime.now().year + 1),
+      builder: (BuildContext context, Widget? child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Colors.orange,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(foregroundColor: Colors.orange),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
+
     if (picked != null && picked != _selectedEndDate) {
       setState(() {
         _selectedEndDate = picked;
       });
     }
   }
-
   @override
   void dispose() {
     _reasonController.dispose();

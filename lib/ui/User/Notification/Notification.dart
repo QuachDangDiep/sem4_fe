@@ -6,47 +6,59 @@ class NotificationPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      extendBodyBehindAppBar: true, // ✅ Quan trọng để màu AppBar chàn lên status bar
       appBar: AppBar(
-        title: const Text(
-          'Thông báo',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Thông báo' ),
         centerTitle: true,
         backgroundColor: Colors.orange,
-        elevation: 0,
       ),
-      body: Container(
-        padding: const EdgeInsets.only(top: kToolbarHeight + 24), // ✅ Đẩy nội dung xuống dưới AppBar
-        width: double.infinity,
-        color: Colors.white,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(Icons.folder_off_outlined, size: 80, color: Colors.grey),
-            SizedBox(height: 10),
-            Text(
-              'Không có dữ liệu',
-              style: TextStyle(fontSize: 16, color: Colors.grey),
-            ),
-          ],
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.notifications_off_outlined,
+                size: 100,
+                color: Colors.orange.shade300,
+              ),
+              const SizedBox(height: 20),
+              const Text(
+                'Chưa có thông báo nào',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                'Hãy quay lại sau để kiểm tra nếu có thông báo mới.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 30),
+              ElevatedButton.icon(
+                onPressed: () {
+                  // Sau này bạn có thể thêm logic làm mới
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Đang kiểm tra thông báo...')),
+                  );
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Làm mới'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      // bottomNavigationBar: BottomNavigationBar(
-      //   currentIndex: 2, // mục "Thông báo"
-      //   selectedItemColor: Colors.orange,
-      //   unselectedItemColor: Colors.grey,
-      //   onTap: (index) {
-      //     // TODO: xử lý chuyển trang nếu cần
-      //   },
-      //   items: const [
-      //     BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-      //     BottomNavigationBarItem(icon: Icon(Icons.edit), label: 'Đề xuất'),
-      //     BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Thông báo'),
-      //     BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cá nhân'),
-      //   ],
-      // ),
     );
   }
 }

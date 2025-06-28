@@ -1,12 +1,17 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:sem4_fe/ui/User//Individual/Individual.dart';
-import 'package:sem4_fe/ui/User//Notification/Notification.dart';
-import 'package:sem4_fe/ui/User//Propose/Propose.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:sem4_fe/ui/User/Individual/Individual.dart';
+import 'package:sem4_fe/ui/User/Notification/Notification.dart';
+import 'package:sem4_fe/ui/User/Propose/Propose.dart';
+import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 import 'package:sem4_fe/ui/User/QR/Qrscanner.dart';
 import 'package:sem4_fe/Service/Constants.dart';
 import 'package:sem4_fe/ui/User/QR/Facecame.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
 class HomeScreen extends StatefulWidget {
   final String username;
   final String token;
@@ -27,19 +32,73 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
 
   Map<String, dynamic>? lastCheckInData;
-  bool hasCheckedInToday = false;
-  bool _isSuccess = false;
+  bool hasCheckedIn = false;
+  bool hasCheckedOut = false;
+  String? lastAttendanceDate;
+  String? avatarUrl;
+  bool isLoadingAvatar = false;
 
   @override
   void initState() {
     super.initState();
+    // Thêm dòng này để bật chế độ edge-to-edge
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     fetchUserInfo();
+    _loadAttendanceStatus();
+    _loadAvatar();
+  }
+
+  Future<void> _loadAvatar() async {
+    if (mounted) {
+      setState(() => isLoadingAvatar = true);
+    }
+
+    try {
+      final url = await fetchEmployeeAvatar();
+
+      if (mounted) {
+        setState(() {
+          avatarUrl = url;
+          isLoadingAvatar = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => isLoadingAvatar = false);
+      }
+      print('Error loading avatar: $e');
+    }
+  }
+
+  Future<void> _loadAttendanceStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    final currentDate = DateTime.now().toIso8601String().split('T')[0]; // YYYY-MM-DD
+    final storedDate = prefs.getString('lastAttendanceDate');
+
+    if (storedDate != currentDate) {
+      // New day, reset status
+      await prefs.setBool('hasCheckedIn', false);
+      await prefs.setBool('hasCheckedOut', false);
+      await prefs.setString('lastAttendanceDate', currentDate);
+      setState(() {
+        hasCheckedIn = false;
+        hasCheckedOut = false;
+        lastAttendanceDate = currentDate;
+      });
+    } else {
+      // Same day, load status
+      setState(() {
+        hasCheckedIn = prefs.getBool('hasCheckedIn') ?? false;
+        hasCheckedOut = prefs.getBool('hasCheckedOut') ?? false;
+        lastAttendanceDate = storedDate;
+      });
+    }
   }
 
   Future<void> fetchUserInfo() async {
     try {
       final response = await http.get(
-        Uri.parse('${Constants.baseUrl}/api/users/native'),
+        Uri.parse(Constants.homeUrl),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer ${widget.token}',
@@ -51,8 +110,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (responseData['result'] != null) {
           List users = responseData['result'];
-
-          // Tìm user theo username
           final user = users.firstWhere(
                 (u) => u['username'] == widget.username,
             orElse: () => null,
@@ -62,6 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
             userData = user != null ? Map<String, dynamic>.from(user) : null;
             isLoading = false;
           });
+          print('userData: $userData');
         } else {
           throw Exception('Không có dữ liệu người dùng trong kết quả');
         }
@@ -76,6 +134,63 @@ class _HomeScreenState extends State<HomeScreen> {
         SnackBar(content: Text('Lỗi khi tải người dùng: $e')),
       );
     }
+  }
+
+  Future<String?> fetchEmployeeAvatar() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      if (token == null) return null;
+
+      // Kiểm tra xem đã có employeeId chưa
+      String? employeeId = prefs.getString('employeeId');
+      if (employeeId == null || employeeId.isEmpty) {
+        // Nếu chưa có thì lấy từ API
+        final decoded = JwtDecoder.decode(token);
+        final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
+        if (userId == null) return null;
+
+        final employeeIdResponse = await http.get(
+          Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
+          headers: {'Authorization': 'Bearer $token'},
+        );
+
+        if (employeeIdResponse.statusCode != 200) return null;
+        employeeId = employeeIdResponse.body.trim();
+        if (employeeId.isEmpty) return null;
+        await prefs.setString('employeeId', employeeId);
+      }
+
+      // Lấy thông tin chi tiết nhân viên
+      final employeeDetailResponse = await http.get(
+        Uri.parse(Constants.employeeDetailUrl(employeeId)),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (employeeDetailResponse.statusCode == 200) {
+        final data = json.decode(employeeDetailResponse.body);
+        final imageUrl = data['img']?.toString();
+
+        // Kiểm tra và xử lý URL ảnh
+        if (imageUrl != null && imageUrl.isNotEmpty) {
+          // Xử lý URL tương đối (nếu cần)
+          if (!imageUrl.startsWith('http')) {
+            return '${Constants.baseUrl}${imageUrl.startsWith('/') ? '' : '/'}$imageUrl';
+          }
+          return imageUrl;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Lỗi fetchEmployeeAvatar: $e');
+      return null;
+    }
+  }
+
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
   }
 
   void showCheckInOptions() {
@@ -124,7 +239,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              // Nút đóng ở góc trên bên phải
               Positioned(
                 right: 0,
                 top: 0,
@@ -139,30 +253,34 @@ class _HomeScreenState extends State<HomeScreen> {
       },
     );
   }
+
   void _navigateToQRScanner() {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => QRScannerScreen(
           token: widget.token,
-          // employeeId: userData?['id'] ?? 0, // Lấy ID nhân viên từ userData
         ),
       ),
     ).then((result) {
       if (result == true) {
-        setState(() {
-          _isSuccess = true; // ✅ Thêm dòng này
-          hasCheckedInToday = true;
-        });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Chấm công thành công!')),
         );
         fetchUserInfo();
+        _loadAttendanceStatus();
       }
     });
   }
 
   void _navigateToFaceAttendance() async {
+    if (hasCheckedIn && hasCheckedOut) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bạn đã hoàn thành chấm công trong ngày hôm nay')),
+      );
+      return;
+    }
+
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -170,14 +288,24 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
 
-    if (result != null) {
-      // Xử lý kết quả trả về nếu cần
-      setState(() {
-        hasCheckedInToday = true;
-      });
+    if (result != null && result['status'] == 'success') {
+      final prefs = await SharedPreferences.getInstance();
+      if (result['type'] == 'checkin') {
+        setState(() => hasCheckedIn = true);
+        await prefs.setBool('hasCheckedIn', true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chấm công vào thành công!')),
+        );
+      } else if (result['type'] == 'checkout') {
+        setState(() => hasCheckedOut = true);
+        await prefs.setBool('hasCheckedOut', true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chấm công ra thành công!')),
+        );
+      }
+      fetchUserInfo();
     }
   }
-
 
   Widget _buildHomePage() {
     if (isLoading) {
@@ -187,218 +315,189 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Center(child: Text("Không tìm thấy người dùng"));
     }
 
-    return Container(
-      color: Colors.white,
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Avatar và thông tin người dùng
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundImage: (userData!['avatarUrl'] != null &&
-                      userData!['avatarUrl'].toString().isNotEmpty)
-                      ? NetworkImage(userData!['avatarUrl'])
-                      : const AssetImage('assets/avatar.jpg')
-                  as ImageProvider,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "Xin chào,",
-                        style: TextStyle(fontSize: 16, color: Colors.black87),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        userData!['fullName'] ?? widget.username,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        userData!['positionName'] ?? 'Cộng tác viên kinh doanh',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final appBarHeight = kToolbarHeight + statusBarHeight;
+
+    return Scaffold(
+      body: Container(
+        color: Colors.white,
+        child: SingleChildScrollView(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            MediaQuery.of(context).padding.top + 16,
+            16,
+            16,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  // Trong _buildHomePage() của HomeScreen
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundImage: (userData!['img'] ?? '').toString().isNotEmpty
+                        ? NetworkImage(
+                      userData!['img'].toString().startsWith('http')
+                          ? userData!['img']
+                          : '${Constants.baseUrl}${userData!['img'].toString().startsWith('/') ? '' : '/'}${userData!['img']}',
+                    )
+                        : const AssetImage('assets/avatar.jpg') as ImageProvider,
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Ca làm việc
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-                color: Colors.white,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    "Ca làm việc",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("Vào ca", style: TextStyle(color: Colors.grey)),
-                          SizedBox(height: 4),
-                        ],
-                      ),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("Ra ca", style: TextStyle(color: Colors.grey)),
-                          SizedBox(height: 4),
-                        ],
-                      ),
-                    ],
-                  )
-                ],
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Chấm công chính
-            GestureDetector(
-              onTap: showCheckInOptions,
-              child: Container(
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
-                  color: const Color(0xFFD49A2F),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
-                    Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
-                    SizedBox(width: 12),
-                    Text(
-                      "Chấm công",
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 20,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Thay thế phần "Trạng thái" hiện tại bằng:
-            if (_isSuccess)
-              Positioned.fill(
-                child: Container(
-                  color: Colors.black.withOpacity(0.7),
-                  child: Center(
+                  const SizedBox(width: 16),
+                  Expanded(
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          margin: const EdgeInsets.symmetric(horizontal: 20),
-                          decoration: BoxDecoration(
-                            color: hasCheckedInToday ? Colors.green.shade100 : Colors.orange.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Center(
-                            child: Text(
-                              hasCheckedInToday
-                                  ? "Hôm nay bạn đã chấm công"
-                                  : "Hôm nay bạn chưa chấm công",
-                              style: TextStyle(
-                                color: hasCheckedInToday ? Colors.green.shade800 : Colors.orange.shade800,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                              ),
-                            ),
+                        const Text(
+                          "Xin chào,",
+                          style: TextStyle(fontSize: 16, color: Colors.black87),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          userData!['fullName'] ?? widget.username,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
                           ),
                         ),
-                        const SizedBox(height: 20),
-                        ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                          ),
-                          child: const Text(
-                            'ĐÓNG',
-                            style: TextStyle(fontSize: 18),
+                        const SizedBox(height: 4),
+                        Text(
+                          userData!['positionName'] ??
+                              'Cộng tác viên kinh doanh',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey,
                           ),
                         ),
                       ],
                     ),
                   ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  border: Border.all(color: Colors.grey.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                  color: Colors.white,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      "Ca làm việc",
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Vào ca",
+                                style: TextStyle(color: Colors.grey)),
+                            SizedBox(height: 4),
+                          ],
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text("Ra ca", style: TextStyle(color: Colors.grey)),
+                            SizedBox(height: 4),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-          ],
+              const SizedBox(height: 16),
+              GestureDetector(
+                onTap: showCheckInOptions,
+                child: Container(
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    color: const Color(0xFFD49A2F),
+                  ),
+                  padding:
+                  const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: const [
+                      Icon(Icons.qr_code_scanner,
+                          color: Colors.white, size: 28),
+                      SizedBox(width: 12),
+                      Text(
+                        "Chấm công",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 20,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: hasCheckedIn && hasCheckedOut
+                      ? Colors.green.shade100
+                      : hasCheckedIn
+                      ? Colors.blue.shade100
+                      : Colors.orange.shade100,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Text(
+                    hasCheckedIn && hasCheckedOut
+                        ? "Hôm nay bạn đã chấm công đầy đủ"
+                        : hasCheckedIn
+                        ? "Hôm nay bạn đã chấm công vào"
+                        : "Hôm nay bạn chưa chấm công",
+                    style: TextStyle(
+                      color: hasCheckedIn && hasCheckedOut
+                          ? Colors.green.shade800
+                          : hasCheckedIn
+                          ? Colors.blue.shade800
+                          : Colors.orange.shade800,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildQRAction({
-    required IconData icon,
-    required String text,
-    required Color color,
-  }) {
-    return GestureDetector(
-      onTap: _navigateToQRScanner,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: Colors.white, size: 28),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                text,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  void refreshAvatar() async {
+    final url = await fetchEmployeeAvatar();
+    if (mounted) {
+      setState(() {
+        avatarUrl = url;
+      });
+    }
   }
+
 
   Widget _buildCheckInOption({
     required IconData icon,
@@ -443,15 +542,10 @@ class _HomeScreenState extends State<HomeScreen> {
       PersonalPage(),
     ];
 
-    void _onItemTapped(int index) {
-      setState(() {
-        _selectedIndex = index;
-      });
-    }
-
     return Scaffold(
-      backgroundColor: Colors.white, // hoặc Colors.grey[100] để tạo cảm giác dịu
-      body: SafeArea(child: pages[_selectedIndex]),
+      extendBodyBehindAppBar: true,
+      backgroundColor: Colors.white,
+      body: pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
         currentIndex: _selectedIndex,

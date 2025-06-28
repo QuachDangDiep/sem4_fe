@@ -150,8 +150,8 @@ class _HomeHRPageState extends State<HomeHRPage> {
                   return HorizontalSummaryCards(
                     colors: colors,
                     totalEmployees: totalEmployees,
-                    username: widget.username, // Pass username
-                    token: widget.token,       // Pass token
+                    username: widget.username,
+                    token: widget.token,
                   );
                 }
               },
@@ -207,19 +207,13 @@ class HorizontalSummaryCards extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         physics: const BouncingScrollPhysics(),
         children: [
-          SummaryCard(
-            title: 'Tổng doanh thu',
-            value: '2.5 tỷ VNĐ',
-            subtitle: '↑ 1.12% so với tháng trước',
-            color: colors[1],
-          ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 16), // Maintain spacing
           GestureDetector(
-              onTap: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => StaffScreen(username: username, token: token),
+            onTap: () {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => StaffScreen(username: username, token: token),
                 ),
               );
             },
@@ -235,6 +229,7 @@ class HorizontalSummaryCards extends StatelessWidget {
     );
   }
 }
+
 class SummaryCard extends StatelessWidget {
   final String title, value, subtitle;
   final Color color;
