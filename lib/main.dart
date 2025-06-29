@@ -1,41 +1,54 @@
 import 'package:face_camera/face_camera.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sem4_fe/services/fcm_service.dart';
+import 'package:sem4_fe/services/notification_service.dart';
 import 'package:sem4_fe/ui/login/Login.dart';
+import 'package:sem4_fe/ui/User/Notification/Notification.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
+
+// ✅ Global navigator key (dùng toàn ứng dụng)
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
-  // Đảm bảo Flutter binding được khởi tạo trước khi chạy async code
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Đọc token trước khi khởi chạy app
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  await FCMService.initFCM(); // Khởi tạo FCM
+
   String? savedToken = await getToken();
-  print('Token đã lưu khi khởi động app: $savedToken');
+  String? userId = getUserIdFromToken(savedToken);
 
-  WidgetsFlutterBinding.ensureInitialized();       // ✅ Bắt buộc trước khi init camera
-  await FaceCamera.initialize();                   // ✅ Khởi tạo camera
+  if (userId != null) {
+    await NotificationService.initialize(userId); // Khởi tạo thông báo nếu đã login
+  }
 
-  runApp(MyApp(savedToken: savedToken));
+  await FaceCamera.initialize();
+
+  runApp(MyApp(savedToken: savedToken, userId: userId));
 }
 
 class MyApp extends StatelessWidget {
   final String? savedToken;
+  final String? userId;
 
-  const MyApp({super.key, this.savedToken});
+  const MyApp({super.key, this.savedToken, this.userId});
 
   @override
   Widget build(BuildContext context) {
-    // In ra token để kiểm tra (có thể bỏ sau khi debug)
-    if (savedToken != null) {
-      print('Token trong MyApp: $savedToken');
-    }
-
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Login App',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: false,
-      ),
-      home: LoginScreen(
+      theme: ThemeData(useMaterial3: false),
+      home: savedToken != null && userId != null
+          ? NotificationPage(userId: userId!) // ✅ chuyển vào trang noti nếu đã login
+          : LoginScreen(
         onLogin: (username, password) {
           print('Login attempted with: $username, $password');
         },
@@ -44,12 +57,21 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// ✅ Lấy token từ SharedPreferences
 Future<String?> getToken() async {
   try {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString('auth_token');
   } catch (e) {
-    print('Lỗi khi đọc token: $e');
+    print('❌ Lỗi khi đọc token: $e');
     return null;
   }
+}
+
+// ✅ Giải mã token và lấy userId
+String? getUserIdFromToken(String? token) {
+  if (token == null || JwtDecoder.isExpired(token)) return null;
+  final decoded = JwtDecoder.decode(token);
+  print('🔍 Thông tin từ JWT: $decoded');
+  return decoded['userId']; // Đảm bảo backend có trả userId trong token
 }
