@@ -538,7 +538,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Widget> pages = [
       _buildHomePage(),
       ProposalPage(),
-      NotificationPage(),
+      NotificationPage(userId: JwtDecoder.decode(widget.token)['userId']),
       PersonalPage(),
     ];
 
