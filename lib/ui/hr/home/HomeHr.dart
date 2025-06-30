@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:sem4_fe/ui/hr/Setting/Setting.dart';
 import 'package:sem4_fe/ui/hr/Staff/staff.dart';
+import 'package:sem4_fe/ui/hr/timekeeping/Timekeeping.dart';
 
 class UserResponse {
   final String id, username, email, role, status;
@@ -102,9 +103,14 @@ class _HomeHRPageState extends State<HomeHRPage> {
         );
         break;
       case 2:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => TimekeepingScreen(username: widget.username, token: widget.token)),
+        );
+        break;
       case 3:
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Chức năng ${index == 2 ? "Chấm công" : "Báo cáo"} đang được phát triển')),
+          const SnackBar(content: Text('Chức năng Báo cáo đang được phát triển')),
         );
         break;
       case 4:

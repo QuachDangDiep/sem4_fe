@@ -55,13 +55,6 @@ class _CompanyInfoSectionState extends State<CompanyInfoSection> {
                       height: 80,
                     ),
                     const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: () {
-                        // TODO: Chọn logo mới
-                      },
-                      icon: const Icon(Icons.camera_alt),
-                      label: const Text('Thay đổi logo'),
-                    ),
                   ],
                 ),
               ),
