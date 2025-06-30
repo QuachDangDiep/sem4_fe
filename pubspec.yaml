@@ -35,13 +35,18 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.13.1
+
 
 flutter:
   uses-material-design: true
-
+#flutter_icons:
+#  android: true
+#  image_path: "assets/images/logo_app.png"
+#  # Hoặc chỉ định riêng từng nền tảng
+#  min_sdk_android: 21
   assets:
-    - assets/google.png
-    - assets/facebook.png
+#    - assets/logo_app.png
     - assets/anh.png
     - assets/hr.png
     - assets/avatar.jpg
