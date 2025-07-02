@@ -41,6 +41,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<dynamic> workShifts = [];
 
+  List<dynamic> workShifts = [];
+
+
   @override
   void initState() {
     super.initState();
@@ -179,6 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
         final imageUrl = data['img']?.toString();
         print('Ảnh lấy được từ API: ${data['img']}');
 
+
         if (mounted) {
           setState(() {
             avatarUrl = imageUrl != null && imageUrl.isNotEmpty
@@ -192,6 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         print('Thông tin chi tiết nhân viên: $data');
+
 
         // Kiểm tra và xử lý URL ảnh
         if (imageUrl != null && imageUrl.isNotEmpty) {
@@ -217,12 +222,15 @@ class _HomeScreenState extends State<HomeScreen> {
       if (token == null || employeeId == null) return;
 
       final response = await http.get(
+
         Uri.parse(Constants.qrAttendancesByEmployeeUrl(employeeId)),
+
         headers: {'Authorization': 'Bearer $token'},
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
+
 
         // Sắp xếp bản ghi theo thời gian giảm dần
         data.sort((a, b) =>
@@ -254,6 +262,17 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } catch (e) {
       print('Lỗi fetchWorkShifts (QR): $e');
+    }
+  }
+
+
+
+        setState(() {
+          workShifts = data;
+        });
+      }
+    } catch (e) {
+      print('Lỗi fetchWorkShifts: $e');
     }
   }
 

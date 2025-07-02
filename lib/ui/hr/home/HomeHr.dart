@@ -60,6 +60,7 @@ class _HomeHRPageState extends State<HomeHRPage> {
     const Color(0xFFEF6C00),
   ];
 
+
   // void _onItemTapped(int index) {
   //   if (index == _selectedIndex) return;
   //   setState(() => _selectedIndex = index);
@@ -97,6 +98,78 @@ class _HomeHRPageState extends State<HomeHRPage> {
   //       break;
   //   }
   // }
+  Future<String?> getUserRoleId() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:8080/api/roles'),
+        headers: {'Authorization': 'Bearer ${widget.token}', 'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        final roles = jsonDecode(response.body)['result'] ?? [];
+        return roles.firstWhere((role) => role['roleName'] == 'User', orElse: () => null)?['roleId'];
+      }
+    } catch (e) {
+      print('Error fetching roles: $e');
+    }
+    return null;
+  }
+
+  Future<List<UserResponse>> fetchUsers({String? status}) async {
+    final roleId = await getUserRoleId();
+    if (roleId == null) throw Exception('User role not found');
+    try {
+      final response = await http.get(
+        Uri.parse('http://10.0.2.2:8080/api/users${status != null ? '?status=$status' : ''}'),
+        headers: {'Authorization': 'Bearer ${widget.token}', 'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        return (jsonDecode(response.body)['result'] ?? [])
+            .map<UserResponse>((json) => UserResponse.fromJson(json))
+            .where((user) => user.role == roleId)
+            .toList();
+      }
+      throw Exception('Failed to load users: ${response.statusCode}');
+    } catch (e) {
+      throw Exception('Error fetching users: $e');
+    }
+  }
+
+  Future<int> fetchTotalEmployees() async {
+    final users = await fetchUsers();
+    return users.length;
+  }
+
+  void _onItemTapped(int index) {
+    if (index == _selectedIndex) return;
+    setState(() => _selectedIndex = index);
+    switch (index) {
+      case 0:
+        break;
+      case 1:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => StaffScreen(username: widget.username, token: widget.token)),
+        );
+        break;
+      case 2:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => TimekeepingScreen(username: widget.username, token: widget.token)),
+        );
+        break;
+      case 3:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Chức năng Báo cáo đang được phát triển')),
+        );
+        break;
+      case 4:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => HrSettingsPage(username: widget.username, token: widget.token)),
+        );
+        break;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
