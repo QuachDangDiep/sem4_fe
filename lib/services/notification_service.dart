@@ -11,13 +11,10 @@ class NotificationService {
     await _firebaseMessaging.requestPermission();
 
     final token = await _firebaseMessaging.getToken();
-    print("📲 FCM Token: $token");
-
     if (token != null) {
       await ApiService.sendFCMTokenToBackend(userId, token);
     }
 
-    // Hiển thị thông báo foreground
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null) {
         showLocalNotification(
@@ -27,12 +24,10 @@ class NotificationService {
       }
     });
 
-    // Background click
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       print("🔔 Clicked notification (background)");
     });
 
-    // Android local config
     const android = AndroidInitializationSettings('@mipmap/ic_launcher');
     const settings = InitializationSettings(android: android);
     await _localNotifications.initialize(settings);
@@ -44,10 +39,12 @@ class NotificationService {
       'Thông báo',
       importance: Importance.max,
       priority: Priority.high,
+      playSound: true,
+      sound: RawResourceAndroidNotificationSound('notification_sound'),
     );
 
     const details = NotificationDetails(android: androidDetails);
-
     _localNotifications.show(0, title, body, details);
   }
 }
+

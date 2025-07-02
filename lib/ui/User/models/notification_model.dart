@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-
 class AppNotification {
   final String id;
   final String title;
@@ -22,7 +21,7 @@ class AppNotification {
       title: data['title'],
       message: data['message'],
       isRead: data['isRead'] ?? false,
-      createdAt: (data['createdAt'] as Timestamp).toDate(),
+      createdAt: (data['sentAt'] as Timestamp).toDate(),
     );
   }
 }

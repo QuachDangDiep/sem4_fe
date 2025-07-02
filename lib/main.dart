@@ -7,27 +7,39 @@ import 'package:sem4_fe/ui/User/Notification/Notification.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'firebase_options.dart';
 
-// ✅ Global navigator key (dùng toàn ứng dụng)
+// ✅ Global navigator key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+/// ✅ Handler cho thông báo khi app bị kill (background)
+Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  print("🔕 Background message received: ${message.notification?.title}");
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // ✅ Init Firebase
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  await FCMService.initFCM(); // Khởi tạo FCM
+  // ✅ Background handler
+  FirebaseMessaging.onBackgroundMessage(_firebaseBackgroundHandler);
 
+  // ✅ Init FCM
+  await FCMService.initFCM();
+
+  // ✅ Lấy token từ local
   String? savedToken = await getToken();
   String? userId = getUserIdFromToken(savedToken);
 
   if (userId != null) {
-    await NotificationService.initialize(userId); // Khởi tạo thông báo nếu đã login
+    await NotificationService.initialize(userId); // Nếu đã login => load notification
   }
 
+  // ✅ Khởi tạo FaceCamera
   await FaceCamera.initialize();
 
   runApp(MyApp(savedToken: savedToken, userId: userId));
@@ -37,7 +49,7 @@ class MyApp extends StatelessWidget {
   final String? savedToken;
   final String? userId;
 
-  const MyApp({super.key, this.savedToken, this.userId});
+  const MyApp({Key? key, this.savedToken, this.userId}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +59,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: false),
       home: savedToken != null && userId != null
-          ? NotificationPage(userId: userId!) // ✅ chuyển vào trang noti nếu đã login
+          ? NotificationPage(userId: userId!)
           : LoginScreen(
         onLogin: (username, password) {
           print('Login attempted with: $username, $password');
@@ -73,5 +85,5 @@ String? getUserIdFromToken(String? token) {
   if (token == null || JwtDecoder.isExpired(token)) return null;
   final decoded = JwtDecoder.decode(token);
   print('🔍 Thông tin từ JWT: $decoded');
-  return decoded['userId']; // Đảm bảo backend có trả userId trong token
+  return decoded['userId']; // Đảm bảo BE có trả userId trong token
 }
