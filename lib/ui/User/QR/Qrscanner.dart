@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
@@ -178,6 +179,51 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         }),
       );
 
+
+      if (attendanceResponse.statusCode != 200) {
+        throw Exception('Lỗi khi tạo bản ghi chấm công: ${attendanceResponse.body}');
+      }
+
+// ✅ GỌI API để lấy danh sách chấm công mới
+      final shiftsResponse = await http.get(
+        Uri.parse(Constants.qrAttendancesByEmployeeUrl(employeeId!)),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (shiftsResponse.statusCode == 200) {
+        final List<dynamic> shifts = json.decode(shiftsResponse.body);
+
+        // Sắp xếp giảm dần theo thời gian
+        shifts.sort((a, b) =>
+            DateTime.parse(b['scanTime']).compareTo(DateTime.parse(a['scanTime'])));
+
+        Map<String, dynamic>? checkIn, checkOut;
+        for (var record in shifts) {
+          if (record['status'] == 'CheckIn' && checkIn == null) {
+            checkIn = record;
+          } else if (record['status'] == 'CheckOut' && checkOut == null) {
+            checkOut = record;
+          }
+          if (checkIn != null && checkOut != null) break;
+        }
+
+        Navigator.of(context).pop({
+          'status': 'success',
+          'type': checkIn != null && checkOut == null ? 'checkin' : 'checkout',
+          'shifts': [
+            {
+              'checkInTime': checkIn?['scanTime'] != null
+                  ? DateFormat('HH:mm').format(DateTime.parse(checkIn!['scanTime']))
+                  : '---',
+              'checkOutTime': checkOut?['scanTime'] != null
+                  ? DateFormat('HH:mm').format(DateTime.parse(checkOut!['scanTime']))
+                  : '---',
+            }
+          ],
+        });
+
       if (attendanceResponse.statusCode == 200) {
         final shiftsResponse = await http.get(
           Uri.parse('${Constants.baseUrl}/api/attendances/by-employee/$employeeId'),
@@ -194,8 +240,9 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         } else {
           throw Exception('Lỗi khi lấy danh sách ca làm');
         }
+
       } else {
-        throw Exception('Lỗi khi tạo bản ghi chấm công: ${attendanceResponse.body}');
+        throw Exception('Không thể lấy dữ liệu ca làm mới');
       }
     } catch (e) {
       setState(() {

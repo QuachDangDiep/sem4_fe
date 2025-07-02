@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:sem4_fe/ui/User/models/notification_model.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:sem4_fe/main.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 
 class NotificationPage extends StatefulWidget {
-  final String userId;
-  const NotificationPage({Key? key, required this.userId}) : super(key: key);
+  final String token;
+
+  const NotificationPage({Key? key, required this.token}) : super(key: key);
 
   @override
   State<NotificationPage> createState() => _NotificationPageState();
@@ -17,10 +19,12 @@ class _NotificationPageState extends State<NotificationPage> {
   int unreadCount = 0;
   bool showOnlyUnread = false;
   String searchText = "";
+  late String userId;
 
   @override
   void initState() {
     super.initState();
+    userId = JwtDecoder.decode(widget.token)['userId'];
     updateStream();
     fetchUnreadCount();
     setupForegroundHandler();
@@ -29,7 +33,7 @@ class _NotificationPageState extends State<NotificationPage> {
   void updateStream() {
     Query baseQuery = FirebaseFirestore.instance
         .collection('notifications')
-        .where('userIds', arrayContains: widget.userId);
+        .where('userIds', arrayContains: userId);
 
     if (showOnlyUnread) {
       baseQuery = baseQuery.where('isRead', isEqualTo: false);
@@ -45,9 +49,10 @@ class _NotificationPageState extends State<NotificationPage> {
   void fetchUnreadCount() async {
     final snap = await FirebaseFirestore.instance
         .collection('notifications')
-        .where('userIds', arrayContains: widget.userId)
+        .where('userIds', arrayContains: userId)
         .where('isRead', isEqualTo: false)
         .get();
+
     setState(() {
       unreadCount = snap.docs.length;
     });
@@ -61,7 +66,12 @@ class _NotificationPageState extends State<NotificationPage> {
           builder: (_) => AlertDialog(
             title: Text(message.notification!.title ?? 'Thông báo'),
             content: Text(message.notification!.body ?? ''),
-            actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('Đóng'))],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Đóng'),
+              ),
+            ],
           ),
         );
       }
@@ -69,23 +79,31 @@ class _NotificationPageState extends State<NotificationPage> {
   }
 
   Future<void> markAsRead(String id) async {
-    await FirebaseFirestore.instance.collection('notifications').doc(id).update({'isRead': true});
+    await FirebaseFirestore.instance
+        .collection('notifications')
+        .doc(id)
+        .update({'isRead': true});
     fetchUnreadCount();
   }
 
   Future<void> deleteNotification(String id) async {
-    await FirebaseFirestore.instance.collection('notifications').doc(id).delete();
+    await FirebaseFirestore.instance
+        .collection('notifications')
+        .doc(id)
+        .delete();
     fetchUnreadCount();
   }
 
   Future<void> deleteAll() async {
     final snap = await FirebaseFirestore.instance
         .collection('notifications')
-        .where('userIds', arrayContains: widget.userId)
+        .where('userIds', arrayContains: userId)
         .get();
+
     for (var doc in snap.docs) {
       await doc.reference.delete();
     }
+
     fetchUnreadCount();
   }
 
@@ -114,12 +132,20 @@ class _NotificationPageState extends State<NotificationPage> {
               ),
               Text("Chỉ hiện chưa đọc"),
               Expanded(
-                child: TextField(
-                  decoration: InputDecoration(hintText: "Tìm kiếm..."),
-                  onChanged: (text) {
-                    searchText = text;
-                    updateStream();
-                  },
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: "Tìm kiếm...",
+                      border: OutlineInputBorder(),
+                      isDense: true,
+                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    ),
+                    onChanged: (text) {
+                      searchText = text;
+                      updateStream();
+                    },
+                  ),
                 ),
               )
             ],
@@ -128,7 +154,10 @@ class _NotificationPageState extends State<NotificationPage> {
             child: StreamBuilder<QuerySnapshot>(
               stream: _notificationStream,
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
+                if (!snapshot.hasData) {
+                  return Center(child: CircularProgressIndicator());
+                }
+
                 if (snapshot.data!.docs.isEmpty) {
                   return Center(child: Text("Không có thông báo nào"));
                 }
@@ -164,7 +193,7 @@ class _NotificationPageState extends State<NotificationPage> {
                 );
               },
             ),
-          )
+          ),
         ],
       ),
     );

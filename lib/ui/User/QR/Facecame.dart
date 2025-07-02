@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
+import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:sem4_fe/Service/Constants.dart';
@@ -26,43 +27,11 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
   bool _isFaceDetected = false;
   bool _isCapturing = false;
   bool _showFlashEffect = false;
-  bool _hasCheckedIn = false;
-  bool _hasCheckedOut = false;
-  String? _lastAttendanceDate;
 
   @override
   void initState() {
     super.initState();
-    _loadAttendanceStatus();
-  }
-
-  Future<void> _loadAttendanceStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    final currentDate = DateTime.now().toIso8601String().split('T')[0]; // YYYY-MM-DD
-    final storedDate = prefs.getString('lastAttendanceDate');
-
-    if (storedDate != currentDate) {
-      // New day, reset status
-      await prefs.setBool('hasCheckedIn', false);
-      await prefs.setBool('hasCheckedOut', false);
-      await prefs.setString('lastAttendanceDate', currentDate);
-      setState(() {
-        _hasCheckedIn = false;
-        _hasCheckedOut = false;
-        _lastAttendanceDate = currentDate;
-      });
-    } else {
-      // Same day, load status
-      setState(() {
-        _hasCheckedIn = prefs.getBool('hasCheckedIn') ?? false;
-        _hasCheckedOut = prefs.getBool('hasCheckedOut') ?? false;
-        _lastAttendanceDate = storedDate;
-      });
-    }
-
-    if (!_hasCheckedIn || !_hasCheckedOut) {
-      await _requestPermissionsAndInitializeCamera();
-    }
+    _requestPermissionsAndInitializeCamera();
   }
 
   Future<void> _requestPermissionsAndInitializeCamera() async {
@@ -160,8 +129,10 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       if (token == null) throw Exception('Token không tồn tại');
 
       final decoded = JwtDecoder.decode(token);
-      final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
+      final userId = decoded['userId']?.toString()
+          ?? decoded['sub']?.toString(); // fallback
       if (userId == null) throw Exception('Không tìm thấy userId trong token');
+
 
       final employeeResponse = await http.get(
         Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
@@ -181,9 +152,6 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       final imageBytes = await File(_capturedImage!.path).readAsBytes();
       final base64Image = base64Encode(imageBytes);
 
-      // Determine check-in or check-out
-      final String attendanceType = _hasCheckedIn ? 'checkout' : 'checkin';
-
       final response = await http.post(
         Uri.parse(Constants.attendanceUrl),
         headers: {
@@ -195,26 +163,56 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
           'imageBase64': base64Image,
           'latitude': position.latitude,
           'longitude': position.longitude,
-          'type': attendanceType, // Add type field
         }),
       );
 
       if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // Update attendance status
-        if (attendanceType == 'checkin') {
-          await prefs.setBool('hasCheckedIn', true);
-          setState(() => _hasCheckedIn = true);
-        } else {
-          await prefs.setBool('hasCheckedOut', true);
-          setState(() => _hasCheckedOut = true);
-        }
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✅ Chấm công ${attendanceType == 'checkin' ? 'vào' : 'ra'} thành công!')),
+        // ✅ Gọi lại API lấy danh sách chấm công bằng QR sau khi đã chấm công khuôn mặt
+        final qrAttendanceRes = await http.get(
+          Uri.parse(Constants.qrAttendancesByEmployeeUrl(employeeId)),
+          headers: {'Authorization': 'Bearer $token'},
         );
-        Navigator.of(context).pop({'status': 'success', 'type': attendanceType});
+
+        if (qrAttendanceRes.statusCode == 200) {
+          final List<dynamic> data = json.decode(qrAttendanceRes.body);
+
+          // Sắp xếp theo thời gian mới nhất
+          data.sort((a, b) =>
+              DateTime.parse(b['scanTime']).compareTo(DateTime.parse(a['scanTime'])));
+
+          Map<String, dynamic>? checkIn, checkOut;
+          for (var record in data) {
+            if (record['status'] == 'CheckIn' && checkIn == null) {
+              checkIn = record;
+            } else if (record['status'] == 'CheckOut' && checkOut == null) {
+              checkOut = record;
+            }
+            if (checkIn != null && checkOut != null) break;
+          }
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('✅ Chấm công thành công!')),
+          );
+
+          Navigator.of(context).pop({
+            'status': 'success',
+            'type': checkIn != null && checkOut == null ? 'checkin' : 'checkout',
+            'shifts': [
+              {
+                'checkInTime': checkIn?['scanTime'] != null
+                    ? DateFormat('HH:mm').format(DateTime.parse(checkIn!['scanTime']))
+                    : '---',
+                'checkOutTime': checkOut?['scanTime'] != null
+                    ? DateFormat('HH:mm').format(DateTime.parse(checkOut!['scanTime']))
+                    : '---',
+              }
+            ]
+          });
+        } else {
+          throw Exception('Lỗi khi lấy dữ liệu QR chấm công');
+        }
       } else {
         final message = response.body.isNotEmpty
             ? jsonDecode(response.body)['message'] ?? 'Lỗi không rõ'
@@ -245,10 +243,8 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
     _controller?.dispose();
     super.dispose();
   }
-
   Widget _buildOverlayWithCameraOrImage() {
-    final double width = MediaQuery.of(context).size.width * 0.8;
-    final double height = MediaQuery.of(context).size.width * 1.2; // Vertically stretched oval
+    final double size = MediaQuery.of(context).size.width * 0.8;
 
     return Stack(
       children: [
@@ -262,8 +258,8 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
         Center(
           child: ClipOval(
             child: Container(
-              width: width,
-              height: height, // Taller oval frame
+              width: size,
+              height: size,
               child: _capturedImage == null
                   ? (_controller != null
                   ? CameraPreview(_controller!)
@@ -283,10 +279,10 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
           top: MediaQuery.of(context).padding.top + 30,
           left: 0,
           right: 0,
-          child: const Text(
+          child: Text(
             'Vui lòng đưa khuôn mặt vào khung hình',
             textAlign: TextAlign.center,
-            style: TextStyle(
+            style: const TextStyle(
               color: Colors.black,
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -294,30 +290,39 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
           ),
         ),
         Center(
-          child: ClipOval(
-            child: Container(
-              width: width,
-              height: height, // Match the taller oval frame
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: _isCapturing
+                ? TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(seconds: 3),
+              builder: (context, value, child) {
+                return CircularProgressIndicator(
+                  strokeWidth: 4,
+                  valueColor:
+                  const AlwaysStoppedAnimation(Color(0xFFF57C00)),
+                  backgroundColor: Colors.orange.withOpacity(0.2),
+                  value: value,
+                );
+              },
+            )
+                : Container(
               decoration: BoxDecoration(
+                shape: BoxShape.circle,
                 border: Border.all(
-                  color: _capturedImage != null ? Colors.orange : Colors.grey,
-                  width: 6, // Thicker border
+                  color: _capturedImage != null
+                      ? Colors.orange
+                      : Colors.grey,
+                  width: 4,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
-                    spreadRadius: 2,
-                    blurRadius: 8,
-                    offset: const Offset(0, 4), // Shadow for prominence
-                  ),
-                ],
               ),
             ),
           ),
         ),
         if (_isFaceDetected && !_isCapturing && _capturedImage == null)
           Positioned(
-            bottom: MediaQuery.of(context).size.height * 0.1, // Lower position
+            bottom: MediaQuery.of(context).size.height * 0.2,
             left: 0,
             right: 0,
             child: const Column(
@@ -331,27 +336,6 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
                   ),
                 ),
               ],
-            ),
-          ),
-        if (_isCapturing)
-          Center(
-            child: ClipOval(
-              child: SizedBox(
-                width: width,
-                height: height,
-                child: TweenAnimationBuilder<double>(
-                  tween: Tween(begin: 0, end: 1),
-                  duration: const Duration(seconds: 3),
-                  builder: (context, value, child) {
-                    return CircularProgressIndicator(
-                      strokeWidth: 4,
-                      valueColor: const AlwaysStoppedAnimation(Color(0xFFF57C00)),
-                      backgroundColor: Colors.orange.withOpacity(0.2),
-                      value: value,
-                    );
-                  },
-                ),
-              ),
             ),
           ),
       ],
@@ -382,56 +366,6 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_hasCheckedIn && _hasCheckedOut) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        appBar: AppBar(
-          title: const Text('Chấm công bằng khuôn mặt'),
-          backgroundColor: Colors.orange[500],
-          elevation: 0,
-          iconTheme: const IconThemeData(color: Colors.white),
-          titleTextStyle: const TextStyle(
-            color: Colors.white,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-          titleSpacing: -5,
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(
-                Icons.check_circle,
-                color: Colors.green,
-                size: 100,
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Bạn đã hoàn thành chấm công trong ngày hôm nay',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                ),
-                child: const Text('Quay lại'),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -440,10 +374,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         titleTextStyle: const TextStyle(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
+            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
         titleSpacing: -5,
       ),
       body: _isUploading

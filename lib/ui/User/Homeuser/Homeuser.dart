@@ -37,6 +37,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String? lastAttendanceDate;
   String? avatarUrl;
   bool isLoadingAvatar = false;
+  String? positionName;
+
+  List<dynamic> workShifts = [];
 
   List<dynamic> workShifts = [];
 
@@ -56,7 +59,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) {
       setState(() => isLoadingAvatar = true);
     }
-
     try {
       final url = await fetchEmployeeAvatar();
 
@@ -123,6 +125,10 @@ class _HomeScreenState extends State<HomeScreen> {
             userData = user != null ? Map<String, dynamic>.from(user) : null;
             isLoading = false;
           });
+
+          print('Gọi API chức vụ với ID: ${userData!['positionId']}');
+          print('Dữ liệu trả về: $responseData');
+
           print('userData: $userData');
         } else {
           throw Exception('Không có dữ liệu người dùng trong kết quả');
@@ -177,6 +183,21 @@ class _HomeScreenState extends State<HomeScreen> {
         print('Ảnh lấy được từ API: ${data['img']}');
 
 
+        if (mounted) {
+          setState(() {
+            avatarUrl = imageUrl != null && imageUrl.isNotEmpty
+                ? (!imageUrl.startsWith('http')
+                ? '${Constants.baseUrl}${imageUrl.startsWith('/') ? '' : '/'}$imageUrl'
+                : imageUrl)
+                : null;
+
+            positionName = data['positionName']; // 👈 LẤY Ở ĐÂY
+          });
+        }
+
+        print('Thông tin chi tiết nhân viên: $data');
+
+
         // Kiểm tra và xử lý URL ảnh
         if (imageUrl != null && imageUrl.isNotEmpty) {
           // Xử lý URL tương đối (nếu cần)
@@ -201,12 +222,51 @@ class _HomeScreenState extends State<HomeScreen> {
       if (token == null || employeeId == null) return;
 
       final response = await http.get(
-        Uri.parse('${Constants.baseUrl}/api/attendances/by-employee/$employeeId'),
+
+        Uri.parse(Constants.qrAttendancesByEmployeeUrl(employeeId)),
+
         headers: {'Authorization': 'Bearer $token'},
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
+
+
+        // Sắp xếp bản ghi theo thời gian giảm dần
+        data.sort((a, b) =>
+            DateTime.parse(b['scanTime']).compareTo(DateTime.parse(a['scanTime'])));
+
+        // Lấy 2 bản ghi gần nhất: CheckIn & CheckOut
+        Map<String, dynamic>? checkIn, checkOut;
+        for (var record in data) {
+          if (record['status'] == 'CheckIn' && checkIn == null) {
+            checkIn = record;
+          } else if (record['status'] == 'CheckOut' && checkOut == null) {
+            checkOut = record;
+          }
+          if (checkIn != null && checkOut != null) break;
+        }
+
+        setState(() {
+          workShifts = [
+            {
+              'checkInTime': checkIn?['scanTime'] != null
+                  ? DateFormat('HH:mm').format(DateTime.parse(checkIn!['scanTime']))
+                  : '---',
+              'checkOutTime': checkOut?['scanTime'] != null
+                  ? DateFormat('HH:mm').format(DateTime.parse(checkOut!['scanTime']))
+                  : '---',
+            }
+          ];
+        });
+      }
+    } catch (e) {
+      print('Lỗi fetchWorkShifts (QR): $e');
+    }
+  }
+
+
+
         setState(() {
           workShifts = data;
         });
@@ -215,6 +275,7 @@ class _HomeScreenState extends State<HomeScreen> {
       print('Lỗi fetchWorkShifts: $e');
     }
   }
+
 
   void _onItemTapped(int index) {
     setState(() {
@@ -393,12 +454,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          userData!['positionName'] ??
-                              'Cộng tác viên kinh doanh',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
+                          positionName ?? 'Cộng tác viên kinh doanh',
+                          style: TextStyle(fontSize: 14, color: Colors.grey),
                         ),
                       ],
                     ),
@@ -446,7 +503,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    color: const Color(0xFFD49A2F),
+                    color: Colors.orange,
                   ),
                   padding:
                   const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
@@ -477,7 +534,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ? Colors.green.shade100
                       : hasCheckedIn
                       ? Colors.blue.shade100
-                      : Colors.orange.shade100,
+                      : Colors.red.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
@@ -515,7 +572,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
-
 
   Widget _buildCheckInOption({
     required IconData icon,
@@ -556,7 +612,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Widget> pages = [
       _buildHomePage(),
       ProposalPage(),
-      NotificationPage(userId: JwtDecoder.decode(widget.token)['userId']),
+      NotificationPage(token: widget.token),
       PersonalPage(),
     ];
 
@@ -568,7 +624,7 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.white,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        selectedItemColor: const Color(0xFFD49A2F),
+        selectedItemColor: Colors.orange,
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
         items: const [

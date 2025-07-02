@@ -86,7 +86,7 @@ class _LoginScreenState extends State<LoginScreen> {
           role = data['result']['role']?.toString().trim().toLowerCase() ?? '';
         }
 
-        if (role == 'hr') {
+        if (role == 'Hr') {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (_) => HomeHRPage(username: username, token: token)),
