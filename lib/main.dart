@@ -31,25 +31,22 @@ void main() async {
   // ✅ Init FCM
   await FCMService.initFCM();
 
-  // ✅ Lấy token từ local
+  // ✅ Lấy token từ local (nếu có để dùng cho FCM, không để tự động đăng nhập)
   String? savedToken = await getToken();
   String? userId = getUserIdFromToken(savedToken);
 
   if (userId != null) {
-    await NotificationService.initialize(userId); // Nếu đã login => load notification
+    await NotificationService.initialize(userId); // Load FCM nếu có token
   }
 
-  // ✅ Khởi tạo FaceCamera
+  // ✅ Init FaceCamera
   await FaceCamera.initialize();
 
-  runApp(MyApp(savedToken: savedToken, userId: userId));
+  runApp(const MyApp()); // ✅ KHÔNG truyền token để tự động đăng nhập nữa
 }
 
 class MyApp extends StatelessWidget {
-  final String? savedToken;
-  final String? userId;
-
-  const MyApp({Key? key, this.savedToken, this.userId}) : super(key: key);
+  const MyApp({Key? key}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
@@ -58,9 +55,7 @@ class MyApp extends StatelessWidget {
       title: 'Login App',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(useMaterial3: false),
-      home: savedToken != null && userId != null
-          ? NotificationPage(userId: userId!)
-          : LoginScreen(
+      home: LoginScreen(
         onLogin: (username, password) {
           print('Login attempted with: $username, $password');
         },

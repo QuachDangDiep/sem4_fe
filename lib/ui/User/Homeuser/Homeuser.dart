@@ -37,6 +37,9 @@ class _HomeScreenState extends State<HomeScreen> {
   String? lastAttendanceDate;
   String? avatarUrl;
   bool isLoadingAvatar = false;
+  String? positionName;
+
+  List<dynamic> workShifts = [];
 
   @override
   void initState() {
@@ -46,13 +49,13 @@ class _HomeScreenState extends State<HomeScreen> {
     fetchUserInfo();
     _loadAttendanceStatus();
     _loadAvatar();
+    fetchWorkShifts();
   }
 
   Future<void> _loadAvatar() async {
     if (mounted) {
       setState(() => isLoadingAvatar = true);
     }
-
     try {
       final url = await fetchEmployeeAvatar();
 
@@ -119,6 +122,10 @@ class _HomeScreenState extends State<HomeScreen> {
             userData = user != null ? Map<String, dynamic>.from(user) : null;
             isLoading = false;
           });
+
+          print('Gọi API chức vụ với ID: ${userData!['positionId']}');
+          print('Dữ liệu trả về: $responseData');
+
           print('userData: $userData');
         } else {
           throw Exception('Không có dữ liệu người dùng trong kết quả');
@@ -170,6 +177,21 @@ class _HomeScreenState extends State<HomeScreen> {
       if (employeeDetailResponse.statusCode == 200) {
         final data = json.decode(employeeDetailResponse.body);
         final imageUrl = data['img']?.toString();
+        print('Ảnh lấy được từ API: ${data['img']}');
+
+        if (mounted) {
+          setState(() {
+            avatarUrl = imageUrl != null && imageUrl.isNotEmpty
+                ? (!imageUrl.startsWith('http')
+                ? '${Constants.baseUrl}${imageUrl.startsWith('/') ? '' : '/'}$imageUrl'
+                : imageUrl)
+                : null;
+
+            positionName = data['positionName']; // 👈 LẤY Ở ĐÂY
+          });
+        }
+
+        print('Thông tin chi tiết nhân viên: $data');
 
         // Kiểm tra và xử lý URL ảnh
         if (imageUrl != null && imageUrl.isNotEmpty) {
@@ -186,6 +208,55 @@ class _HomeScreenState extends State<HomeScreen> {
       return null;
     }
   }
+
+  Future<void> fetchWorkShifts() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      final employeeId = prefs.getString('employeeId');
+      if (token == null || employeeId == null) return;
+
+      final response = await http.get(
+        Uri.parse(Constants.qrAttendancesByEmployeeUrl(employeeId)),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+
+        // Sắp xếp bản ghi theo thời gian giảm dần
+        data.sort((a, b) =>
+            DateTime.parse(b['scanTime']).compareTo(DateTime.parse(a['scanTime'])));
+
+        // Lấy 2 bản ghi gần nhất: CheckIn & CheckOut
+        Map<String, dynamic>? checkIn, checkOut;
+        for (var record in data) {
+          if (record['status'] == 'CheckIn' && checkIn == null) {
+            checkIn = record;
+          } else if (record['status'] == 'CheckOut' && checkOut == null) {
+            checkOut = record;
+          }
+          if (checkIn != null && checkOut != null) break;
+        }
+
+        setState(() {
+          workShifts = [
+            {
+              'checkInTime': checkIn?['scanTime'] != null
+                  ? DateFormat('HH:mm').format(DateTime.parse(checkIn!['scanTime']))
+                  : '---',
+              'checkOutTime': checkOut?['scanTime'] != null
+                  ? DateFormat('HH:mm').format(DateTime.parse(checkOut!['scanTime']))
+                  : '---',
+            }
+          ];
+        });
+      }
+    } catch (e) {
+      print('Lỗi fetchWorkShifts (QR): $e');
+    }
+  }
+
 
   void _onItemTapped(int index) {
     setState(() {
@@ -263,12 +334,15 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     ).then((result) {
-      if (result == true) {
+      if (result != null) {
+        setState(() {
+          workShifts = result['shifts'] ?? [];
+        });
+        fetchUserInfo();
+        _loadAttendanceStatus();
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Chấm công thành công!')),
         );
-        fetchUserInfo();
-        _loadAttendanceStatus();
       }
     });
   }
@@ -337,12 +411,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   // Trong _buildHomePage() của HomeScreen
                   CircleAvatar(
                     radius: 28,
-                    backgroundImage: (userData!['img'] ?? '').toString().isNotEmpty
-                        ? NetworkImage(
-                      userData!['img'].toString().startsWith('http')
-                          ? userData!['img']
-                          : '${Constants.baseUrl}${userData!['img'].toString().startsWith('/') ? '' : '/'}${userData!['img']}',
-                    )
+                    backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
+                        ? NetworkImage(avatarUrl!)
                         : const AssetImage('assets/avatar.jpg') as ImageProvider,
                   ),
                   const SizedBox(width: 16),
@@ -365,12 +435,8 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          userData!['positionName'] ??
-                              'Cộng tác viên kinh doanh',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey,
-                          ),
+                          positionName ?? 'Cộng tác viên kinh doanh',
+                          style: TextStyle(fontSize: 14, color: Colors.grey),
                         ),
                       ],
                     ),
@@ -388,8 +454,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text(
+                  children: [
+                    const Text(
                       "Ca làm việc",
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
@@ -397,27 +463,17 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: Colors.black87,
                       ),
                     ),
-                    SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("Vào ca",
-                                style: TextStyle(color: Colors.grey)),
-                            SizedBox(height: 4),
-                          ],
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text("Ra ca", style: TextStyle(color: Colors.grey)),
-                            SizedBox(height: 4),
-                          ],
-                        ),
-                      ],
-                    ),
+                    const SizedBox(height: 12),
+                    ...workShifts.map((shift) => Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Vào: ${shift['checkInTime'] ?? '---'}'),
+                          Text('Ra: ${shift['checkOutTime'] ?? '---'}'),
+                        ],
+                      ),
+                    )).toList(),
                   ],
                 ),
               ),
@@ -428,7 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   width: double.infinity,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
-                    color: const Color(0xFFD49A2F),
+                    color: Colors.orange,
                   ),
                   padding:
                   const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
@@ -459,7 +515,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ? Colors.green.shade100
                       : hasCheckedIn
                       ? Colors.blue.shade100
-                      : Colors.orange.shade100,
+                      : Colors.red.shade100,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
@@ -497,7 +553,6 @@ class _HomeScreenState extends State<HomeScreen> {
       });
     }
   }
-
 
   Widget _buildCheckInOption({
     required IconData icon,
@@ -538,7 +593,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final List<Widget> pages = [
       _buildHomePage(),
       ProposalPage(),
-      NotificationPage(userId: JwtDecoder.decode(widget.token)['userId']),
+      NotificationPage(token: widget.token),
       PersonalPage(),
     ];
 
@@ -550,7 +605,7 @@ class _HomeScreenState extends State<HomeScreen> {
         backgroundColor: Colors.white,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        selectedItemColor: const Color(0xFFD49A2F),
+        selectedItemColor: Colors.orange,
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,
         items: const [

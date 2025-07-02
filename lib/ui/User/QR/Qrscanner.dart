@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
@@ -28,7 +29,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   @override
   void initState() {
     super.initState();
-    _loadEmployeeId(); // ← Lấy employeeId khi khởi tạo
+    _loadEmployeeId();
   }
 
   Future<void> _loadEmployeeId() async {
@@ -46,7 +47,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
       if (response.statusCode == 200) {
         setState(() {
-          employeeId = response.body; // trả về chuỗi UUID
+          employeeId = response.body;
         });
       } else {
         throw Exception('Không lấy được employeeId từ userId');
@@ -85,8 +86,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               }
             },
           ),
-
-          // UI như cũ
           Positioned(
             top: 100,
             left: 0,
@@ -119,7 +118,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ],
             ),
           ),
-
           Positioned.fill(
             child: IgnorePointer(
               child: CustomPaint(
@@ -127,7 +125,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
             ),
           ),
-
           if (!_isProcessing)
             Positioned(
               bottom: 40,
@@ -136,62 +133,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
                 onPressed: () => Navigator.pop(context),
                 backgroundColor: Colors.red,
                 child: const Icon(Icons.close),
-              ),
-            ),
-
-          if (_isSuccess)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withOpacity(0.7),
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.check_circle,
-                          color: Colors.green, size: 80),
-                      const SizedBox(height: 20),
-                      const Text(
-                        'Chấm công thành công!',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (_attendanceData != null) ...[
-                        const SizedBox(height: 20),
-                        Text(
-                          'Mã QR: ${_attendanceData!['qrId']}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Text(
-                          'Mã nhân viên: ${_attendanceData!['employeeId']}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 30, vertical: 15),
-                        ),
-                        child: const Text(
-                          'ĐÓNG',
-                          style: TextStyle(fontSize: 18),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
               ),
             ),
         ],
@@ -207,15 +148,12 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
     try {
       final token = widget.token;
-
-      // ✅ Trích xuất UUID từ chuỗi QRCode dạng QR-<UUID>-<locationName>
       final uuidRegex = RegExp(r'[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}');
       final match = uuidRegex.firstMatch(qrCode);
       if (match == null) throw Exception("QR không chứa UUID hợp lệ");
 
-      final qrInfoId = match.group(0); // UUID
+      final qrInfoId = match.group(0);
 
-      // ✅ Gọi API để kiểm tra QRInfo có tồn tại
       final qrRes = await http.get(
         Uri.parse("${Constants.baseUrl}/api/qrcodes/$qrInfoId"),
         headers: {'Authorization': 'Bearer $token'},
@@ -225,7 +163,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         throw Exception('QR không hợp lệ hoặc không tìm thấy');
       }
 
-      // ✅ Tiến hành gửi dữ liệu chấm công
       final attendanceResponse = await http.post(
         Uri.parse(Constants.qrScanUrl),
         headers: {
@@ -237,22 +174,56 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             'employeeId': employeeId,
           },
           'qrInfo': {
-            'qrInfoId': qrInfoId, // ✅ Đã sửa từ 'qrId' → 'qrInfoId'
+            'qrInfoId': qrInfoId,
           }
         }),
       );
 
+      if (attendanceResponse.statusCode != 200) {
+        throw Exception('Lỗi khi tạo bản ghi chấm công: ${attendanceResponse.body}');
+      }
 
-      if (attendanceResponse.statusCode == 200) {
-        setState(() {
-          _isSuccess = true;
-          _attendanceData = {
-            'employeeId': employeeId,
-            'qrId': qrInfoId,
-          };
+// ✅ GỌI API để lấy danh sách chấm công mới
+      final shiftsResponse = await http.get(
+        Uri.parse(Constants.qrAttendancesByEmployeeUrl(employeeId!)),
+        headers: {
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      if (shiftsResponse.statusCode == 200) {
+        final List<dynamic> shifts = json.decode(shiftsResponse.body);
+
+        // Sắp xếp giảm dần theo thời gian
+        shifts.sort((a, b) =>
+            DateTime.parse(b['scanTime']).compareTo(DateTime.parse(a['scanTime'])));
+
+        Map<String, dynamic>? checkIn, checkOut;
+        for (var record in shifts) {
+          if (record['status'] == 'CheckIn' && checkIn == null) {
+            checkIn = record;
+          } else if (record['status'] == 'CheckOut' && checkOut == null) {
+            checkOut = record;
+          }
+          if (checkIn != null && checkOut != null) break;
+        }
+
+        Navigator.of(context).pop({
+          'status': 'success',
+          'type': checkIn != null && checkOut == null ? 'checkin' : 'checkout',
+          'shifts': [
+            {
+              'checkInTime': checkIn?['scanTime'] != null
+                  ? DateFormat('HH:mm').format(DateTime.parse(checkIn!['scanTime']))
+                  : '---',
+              'checkOutTime': checkOut?['scanTime'] != null
+                  ? DateFormat('HH:mm').format(DateTime.parse(checkOut!['scanTime']))
+                  : '---',
+            }
+          ],
         });
       } else {
-        throw Exception('Lỗi khi tạo bản ghi chấm công: ${attendanceResponse.body}');
+        throw Exception('Không thể lấy dữ liệu ca làm mới');
       }
     } catch (e) {
       setState(() {
@@ -266,7 +237,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   }
 }
 
-  class _QRScannerOverlay extends CustomPainter {
+class _QRScannerOverlay extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.black54;
@@ -275,7 +246,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke;
 
-    // Vẽ nền mờ xung quanh
     final outerPath = Path()..addRect(Rect.largest);
     final innerRect = Rect.fromCenter(
       center: Offset(size.width / 2, size.height / 2),
@@ -287,18 +257,14 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       Path.combine(PathOperation.difference, outerPath, innerPath),
       paint,
     );
-
-    // Vẽ khung QR
     canvas.drawRect(innerRect, borderPaint);
 
-    // Vẽ góc vuông
     final cornerLength = 30.0;
     final cornerPaint = Paint()
       ..color = Colors.green
       ..strokeWidth = 6
       ..style = PaintingStyle.stroke;
 
-    // Góc trên trái
     canvas.drawLine(
       innerRect.topLeft,
       innerRect.topLeft + Offset(cornerLength, 0),
@@ -309,8 +275,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       innerRect.topLeft + Offset(0, cornerLength),
       cornerPaint,
     );
-
-    // Góc trên phải
     canvas.drawLine(
       innerRect.topRight,
       innerRect.topRight - Offset(cornerLength, 0),
@@ -321,8 +285,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       innerRect.topRight + Offset(0, cornerLength),
       cornerPaint,
     );
-
-    // Góc dưới trái
     canvas.drawLine(
       innerRect.bottomLeft,
       innerRect.bottomLeft + Offset(cornerLength, 0),
@@ -333,8 +295,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       innerRect.bottomLeft - Offset(0, cornerLength),
       cornerPaint,
     );
-
-    // Góc dưới phải
     canvas.drawLine(
       innerRect.bottomRight,
       innerRect.bottomRight - Offset(cornerLength, 0),
