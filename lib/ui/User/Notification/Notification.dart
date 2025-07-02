@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:badges/badges.dart' as badges;
 import 'package:sem4_fe/ui/User/models/notification_model.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:sem4_fe/main.dart';
@@ -16,18 +15,31 @@ class NotificationPage extends StatefulWidget {
 class _NotificationPageState extends State<NotificationPage> {
   late Stream<QuerySnapshot> _notificationStream;
   int unreadCount = 0;
+  bool showOnlyUnread = false;
+  String searchText = "";
 
   @override
   void initState() {
     super.initState();
-    _notificationStream = FirebaseFirestore.instance
-        .collection('notifications')
-        .where('userIds', arrayContains: widget.userId)
-        .orderBy('createdAt', descending: true)
-        .snapshots();
-
+    updateStream();
     fetchUnreadCount();
     setupForegroundHandler();
+  }
+
+  void updateStream() {
+    Query baseQuery = FirebaseFirestore.instance
+        .collection('notifications')
+        .where('userIds', arrayContains: widget.userId);
+
+    if (showOnlyUnread) {
+      baseQuery = baseQuery.where('isRead', isEqualTo: false);
+    }
+
+    if (searchText.isNotEmpty) {
+      baseQuery = baseQuery.where('title', isGreaterThanOrEqualTo: searchText);
+    }
+
+    _notificationStream = baseQuery.orderBy('sentAt', descending: true).snapshots();
   }
 
   void fetchUnreadCount() async {
@@ -44,16 +56,12 @@ class _NotificationPageState extends State<NotificationPage> {
   void setupForegroundHandler() {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null) {
-        final title = message.notification!.title ?? 'Thông báo';
-        final body = message.notification!.body ?? '';
         showDialog(
           context: navigatorKey.currentContext!,
           builder: (_) => AlertDialog(
-            title: Text(title),
-            content: Text(body),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: Text('Đóng'))
-            ],
+            title: Text(message.notification!.title ?? 'Thông báo'),
+            content: Text(message.notification!.body ?? ''),
+            actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text('Đóng'))],
           ),
         );
       }
@@ -87,59 +95,77 @@ class _NotificationPageState extends State<NotificationPage> {
       appBar: AppBar(
         title: Text('Thông báo'),
         actions: [
-          badges.Badge(
-            showBadge: unreadCount > 0,
-            badgeContent: Text('$unreadCount', style: TextStyle(color: Colors.white)),
-            child: IconButton(
-              icon: Icon(Icons.notifications),
-              onPressed: () {},
-            ),
-          ),
-          IconButton(
-            icon: Icon(Icons.delete_sweep),
-            onPressed: deleteAll,
-          )
+          IconButton(icon: Icon(Icons.delete_sweep), onPressed: deleteAll),
         ],
         backgroundColor: Colors.orange,
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: _notificationStream,
-        builder: (context, snapshot) {
-          if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
-          if (snapshot.data!.docs.isEmpty) {
-            return Center(child: Text("Không có thông báo nào"));
-          }
-
-          List<AppNotification> notiList = snapshot.data!.docs.map((doc) {
-            return AppNotification.fromMap(doc.id, doc.data() as Map<String, dynamic>);
-          }).toList();
-
-          return ListView.builder(
-            itemCount: notiList.length,
-            itemBuilder: (context, index) {
-              final noti = notiList[index];
-              return ListTile(
-                leading: Icon(
-                  noti.isRead ? Icons.mark_email_read : Icons.mark_email_unread,
-                  color: noti.isRead ? Colors.grey : Colors.orange,
+      body: Column(
+        children: [
+          Row(
+            children: [
+              Checkbox(
+                value: showOnlyUnread,
+                onChanged: (val) {
+                  setState(() {
+                    showOnlyUnread = val!;
+                    updateStream();
+                  });
+                },
+              ),
+              Text("Chỉ hiện chưa đọc"),
+              Expanded(
+                child: TextField(
+                  decoration: InputDecoration(hintText: "Tìm kiếm..."),
+                  onChanged: (text) {
+                    searchText = text;
+                    updateStream();
+                  },
                 ),
-                title: Text(noti.title),
-                subtitle: Text(noti.message),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text("${noti.createdAt.hour}:${noti.createdAt.minute}"),
-                    IconButton(
-                      icon: Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => deleteNotification(noti.id),
-                    ),
-                  ],
-                ),
-                onTap: () => markAsRead(noti.id),
-              );
-            },
-          );
-        },
+              )
+            ],
+          ),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _notificationStream,
+              builder: (context, snapshot) {
+                if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
+                if (snapshot.data!.docs.isEmpty) {
+                  return Center(child: Text("Không có thông báo nào"));
+                }
+
+                List<AppNotification> notiList = snapshot.data!.docs.map((doc) {
+                  return AppNotification.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+                }).toList();
+
+                return ListView.builder(
+                  itemCount: notiList.length,
+                  itemBuilder: (context, index) {
+                    final noti = notiList[index];
+                    return ListTile(
+                      leading: Icon(
+                        noti.isRead ? Icons.mark_email_read : Icons.mark_email_unread,
+                        color: noti.isRead ? Colors.grey : Colors.orange,
+                      ),
+                      title: Text(noti.title),
+                      subtitle: Text(noti.message),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text("${noti.createdAt.hour}:${noti.createdAt.minute}"),
+                          IconButton(
+                            icon: Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => deleteNotification(noti.id),
+                          ),
+                        ],
+                      ),
+                      onTap: () => markAsRead(noti.id),
+                    );
+                  },
+                );
+              },
+            ),
+          )
+        ],
       ),
     );
   }
