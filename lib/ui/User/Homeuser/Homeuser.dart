@@ -209,6 +209,37 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _handleCheckInResult(Map<String, dynamic> result) async {
+    final prefs = await SharedPreferences.getInstance();
+
+    if (result['type'] == 'checkin') {
+      setState(() => hasCheckedIn = true);
+      await prefs.setBool('hasCheckedIn', true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chấm công vào thành công!')),
+      );
+    } else if (result['type'] == 'checkout') {
+      setState(() => hasCheckedOut = true);
+      await prefs.setBool('hasCheckedOut', true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Chấm công ra thành công!')),
+      );
+    }
+
+    // Nếu có dữ liệu ca làm việc mới từ result, cập nhật
+    if (result['shifts'] != null) {
+      setState(() {
+        workShifts = result['shifts'];
+      });
+    } else {
+      // Nếu không, gọi API fetch lại từ server
+      await fetchWorkShifts();
+    }
+
+    await fetchUserInfo();
+    await _loadAttendanceStatus();
+  }
+
   Future<void> fetchWorkShifts() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -329,20 +360,11 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => QRScannerScreen(
-          token: widget.token,
-        ),
+        builder: (context) => QRScannerScreen(token: widget.token),
       ),
-    ).then((result) {
-      if (result != null) {
-        setState(() {
-          workShifts = result['shifts'] ?? [];
-        });
-        fetchUserInfo();
-        _loadAttendanceStatus();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chấm công thành công!')),
-        );
+    )..then((result) async {
+      if (result != null && result['status'] == 'success') {
+        await _handleCheckInResult(result);
       }
     });
   }
@@ -361,23 +383,8 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context) => FaceAttendanceScreen(),
       ),
     );
-
     if (result != null && result['status'] == 'success') {
-      final prefs = await SharedPreferences.getInstance();
-      if (result['type'] == 'checkin') {
-        setState(() => hasCheckedIn = true);
-        await prefs.setBool('hasCheckedIn', true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chấm công vào thành công!')),
-        );
-      } else if (result['type'] == 'checkout') {
-        setState(() => hasCheckedOut = true);
-        await prefs.setBool('hasCheckedOut', true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chấm công ra thành công!')),
-        );
-      }
-      fetchUserInfo();
+      await _handleCheckInResult(result);
     }
   }
 

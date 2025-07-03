@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:sem4_fe/ui/login/Login.dart';
-import 'package:sem4_fe/ui/User/Individual/Navbar/WorkSchedule.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/Information.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/Timesheet.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/WorkHistory.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/ChangePasswordPage.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/histotyqr.dart';
+import 'package:sem4_fe/ui/login/Login.dart';
 
-import 'Navbar/Attendance.dart';
-import 'Navbar/Information.dart';
 class PersonalPage extends StatelessWidget {
   const PersonalPage({Key? key}) : super(key: key);
 
@@ -24,163 +27,209 @@ class PersonalPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light.copyWith(
-        statusBarColor: Colors.orange, // Màu của thanh status bar
-        statusBarIconBrightness: Brightness.light, // Icon trắng cho Android
-      ),
-      child: Scaffold(
-        backgroundColor: Colors.white,
-        extendBodyBehindAppBar: true,
-        appBar: AppBar(
-          backgroundColor: Colors.orange,
-          centerTitle: true,
-          elevation: 0,
-          title: const Text('Cá nhân', style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold),),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout, color: Colors.white,),
-              onPressed: () {
-                // TODO: Xử lý chức năng thoát
-                showDialog(
-                  context: context,
-                  builder: (_) =>
-                      AlertDialog(
-                        title: const Text('Đăng xuất'),
-                        content: const Text(
-                            'Bạn có chắc muốn đăng xuất không?'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Hủy'),
-                          ),
-                          TextButton(
-                            onPressed: () {
-                              Navigator.pop(context);
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(builder: (context) => LoginScreen()),
-                              );
-                              // TODO: Thực hiện đăng xuất
-                            },
-                            child: const Text('Đăng xuất'),
-                          ),
-                        ],
+    return Scaffold(
+      backgroundColor: Colors.white,
+      extendBodyBehindAppBar: true,
+      appBar: AppBar(
+        backgroundColor: Colors.orange,
+        centerTitle: true,
+        title: const Text(
+          'Cá nhân',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (_) => AlertDialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  title: Row(
+                    children: const [
+                      Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Text('Xác nhận đăng xuất'),
+                    ],
+                  ),
+                  content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng không?'),
+                  actionsPadding: const EdgeInsets.only(right: 12, bottom: 8),
+                  actions: [
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.grey[700],
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                       ),
-                );
-              },
-            )
-          ],
-        ),
-        body: ListView(
-          children: [
-            buildMenuItem('Thông tin cá nhân', Icons.person, () async {
-              try {
-                // Lấy token từ SharedPreferences
-                final prefs = await SharedPreferences.getInstance();
-                final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
-
-                if (token == null || token.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Vui lòng đăng nhập lại')),
-                  );
-                  return;
-                }
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => PersonalInfoScreen(token: token),
-                  ),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
-                );
-              }
-            }, backgroundColor: Colors.orange),
-            buildMenuItem('Lịch sử chấm công', Icons.history, () {},
-                backgroundColor: Colors.blue),
-            buildMenuItem('Xếp ca làm việc', Icons.schedule, () async {
-              try {
-                // Lấy token từ SharedPreferences
-                final prefs = await SharedPreferences.getInstance();
-                final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
-
-                if (token == null || token.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Vui lòng đăng nhập lại')),
-                  );
-                  return;
-                }
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => WorkScheduleScreen(token: token),
-                  ),
-                );
-              } catch (e) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
-                );
-              }
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Hủy'),
+                    ),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: Colors.orange,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (context) => LoginScreen()),
+                        );
+                      },
+                      child: const Text('Đăng xuất'),
+                    ),
+                  ],
+                ),
+              );
             },
-                backgroundColor: Colors.deepPurple),
-            buildMenuItem('Chấm công hộ', Icons.assignment_ind, () {},
-                backgroundColor: Colors.indigo),
-            buildMenuItem('Bảng công', Icons.grid_on, () async {
-              try {
-                // Lấy token từ SharedPreferences
-                final prefs = await SharedPreferences.getInstance();
-                final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
+          )
+        ],
+      ),
+      body: ListView(
+        children: [
+          buildMenuItem('Thông tin cá nhân', Icons.person, () async {
+            try {
+              // Lấy token từ SharedPreferences
+              final prefs = await SharedPreferences.getInstance();
+              final token = prefs.getString('auth_token');
 
-                if (token == null || token.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Vui lòng đăng nhập lại')),
-                  );
-                  return;
-                }
-
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => AttendanceSummaryScreen(token: token),
-                  ),
-                );
-              } catch (e) {
+              if (token == null || token.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+                  SnackBar(content: Text('Vui lòng đăng nhập lại')),
                 );
+                return;
               }
-            }, backgroundColor: Colors.cyan),
-            buildMenuItem('Bảng phép, thâm niên', Icons.event_note, () {},
-                backgroundColor: Colors.lightBlue),
-            buildMenuItem('Phiếu lương', Icons.attach_money, () {},
-                backgroundColor: Colors.green),
-            buildMenuItem('Hợp đồng lao động', Icons.description, () {},
-                backgroundColor: Colors.amber),
-            buildMenuItem('Đổi mật khẩu', Icons.vpn_key, () {},
-                backgroundColor: Colors.teal),
-            const SizedBox(height: 20),
-          ],
-        ),
-        // bottomNavigationBar: BottomNavigationBar(
-        //   currentIndex: 3,
-        //   selectedItemColor: Colors.orange,
-        //   unselectedItemColor: Colors.grey,
-        //   items: const [
-        //     BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Trang chủ'),
-        //     BottomNavigationBarItem(icon: Icon(Icons.edit), label: 'Đề xuất'),
-        //     BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Thông báo'),
-        //     BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Cá nhân'),
-        //   ],
-        //   onTap: (index) {
-        //     // TODO: Chuyển trang theo index
-        //   },
-        // ),
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => PersonalInfoScreen(token: token),
+                ),
+              );
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+              );
+            }
+          }, backgroundColor: Colors.orange),
+          buildMenuItem('Lịch sử chấm công', Icons.history, () async {
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              final token = prefs.getString('auth_token');
+
+              if (token == null || token.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Vui lòng đăng nhập lại')),
+                );
+                return;
+              }
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AttendanceHistoryScreen(token: token), // Hoặc tên class đúng trong historyqr.dart
+                ),
+              );
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Lỗi khi chuyển trang: ${e.toString()}')),
+              );
+            }
+          }, backgroundColor: Colors.blue),
+
+          buildMenuItem('Bảng công', Icons.grid_on, () async {
+            try {
+              // Lấy token từ SharedPreferences
+              final prefs = await SharedPreferences.getInstance();
+              final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
+
+              if (token == null || token.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Vui lòng đăng nhập lại')),
+                );
+                return;
+              }
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => AttendanceSummaryScreen(token: token),
+                ),
+              );
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+              );
+            }
+          }, backgroundColor: Colors.cyan),
+          buildMenuItem('Bảng phép, thâm niên', Icons.event_note, () {},
+              backgroundColor: Colors.lightBlue),
+          buildMenuItem('Lịch sửa làm việc', Icons.description, () async {
+            try {
+              // Lấy token từ SharedPreferences
+              final prefs = await SharedPreferences.getInstance();
+              final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
+
+              if (token == null || token.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Vui lòng đăng nhập lại')),
+                );
+                return;
+              }
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => WorkHistoryScreen(token: token),
+                ),
+              );
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+              );
+            }
+          },
+              backgroundColor: Colors.amber),
+          buildMenuItem('Đổi mật khẩu', Icons.vpn_key, () async {
+            try {
+              final prefs = await SharedPreferences.getInstance();
+              final token = prefs.getString('auth_token');
+
+              if (token == null || token.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Vui lòng đăng nhập lại')),
+                );
+                return;
+              }
+
+              // Giải mã token để lấy userId
+              final decodedToken = JwtDecoder.decode(token);
+              final userId = decodedToken['userId'] ?? decodedToken['sub'];
+
+              if (userId == null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Không tìm thấy userId trong token')),
+                );
+                return;
+              }
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChangePasswordPage(userId: userId.toString(), token: '',),
+                ),
+              );
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+              );
+            }
+          },
+              backgroundColor: Colors.teal),
+          const SizedBox(height: 20),
+        ],
       ),
     );
   }
 }
+

@@ -68,6 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final data = jsonDecode(response.body);
       if (response.statusCode == 200) {
         final token = data['result']['token']?.toString() ?? '';
+
         if (token.isEmpty) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Không nhận được token')),
@@ -75,33 +76,35 @@ class _LoginScreenState extends State<LoginScreen> {
           return;
         }
 
+        // ✅ Lưu token
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('auth_token', token);
 
-        String role = '';
-        try {
-          final decodedToken = JwtDecoder.decode(token);
-          role = (decodedToken['role']?.toString() ?? '').toLowerCase();
-        } catch (_) {
-          role = data['result']['role']?.toString().trim().toLowerCase() ?? '';
-        }
+        // ✅ Giải mã token để lấy role
+        final decodedToken = JwtDecoder.decode(token);
+        final role = decodedToken['role']?.toString().toLowerCase() ?? '';
 
-        if (role == 'Hr') {
+        print('Role from token: $role');
+
+        // ✅ Điều hướng dựa trên role
+        if (role == 'hr') {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => HomeHRPage(username: username, token: token)),
+            MaterialPageRoute(
+              builder: (_) => HomeHRPage(username: username, token: token),
+            ),
           );
         } else {
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => HomeScreen(username: username, token: token)),
+            MaterialPageRoute(
+              builder: (_) => HomeScreen(username: username, token: token),
+            ),
           );
         }
       } else {
         final message = data['message'] ?? 'Đăng nhập thất bại';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
       }
     } on TimeoutException {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -109,10 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on SocketException {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Không thể kết nối đến server'),
-          duration: const Duration(seconds: 5),
-        ),
+        const SnackBar(content: Text('Không thể kết nối đến server')),
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -122,6 +122,7 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = false);
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
