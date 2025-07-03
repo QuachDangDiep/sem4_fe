@@ -61,20 +61,21 @@ class _NotificationPageState extends State<NotificationPage> {
   void setupForegroundHandler() {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null) {
-        showDialog(
-          context: navigatorKey.currentContext!,
-          builder: (_) => AlertDialog(
-            title: Text(message.notification!.title ?? 'Thông báo'),
-            content: Text(message.notification!.body ?? ''),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text('Đóng'),
-              ),
-            ],
-          ),
-        );
-      }
+      //   showDialog(
+      //     context: navigatorKey.currentContext!,
+      //     builder: (_) => AlertDialog(
+      //       title: Text(message.notification!.title ?? 'Thông báo'),
+      //       content: Text(message.notification!.body ?? ''),
+      //       actions: [
+      //         TextButton(
+      //           onPressed: () => Navigator.pop(context),
+      //           child: Text('Đóng'),
+      //         ),
+      //       ],
+      //     ),
+      //   );
+        fetchUnreadCount();
+       }
     });
   }
 

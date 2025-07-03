@@ -1,9 +1,43 @@
 import 'package:flutter/material.dart';
-import 'package:sem4_fe/ui/User/Propose/Navbar/LeaveRegistration.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sem4_fe/ui/User/Propose/Navbar/LeaveRegistration.dart';
+import 'package:sem4_fe/ui/User/Propose/Navbar/WorkSchedule.dart';
 
-class ProposalPage extends StatelessWidget {
+class ProposalPage extends StatefulWidget {
   const ProposalPage({Key? key}) : super(key: key);
+
+  @override
+  State<ProposalPage> createState() => _ProposalPageState();
+}
+
+class _ProposalPageState extends State<ProposalPage> {
+  String? _token;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadToken();
+  }
+
+  Future<void> _loadToken() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedToken = prefs.getString('auth_token');
+    setState(() => _token = storedToken);
+  }
+
+  void _navigateIfAuthenticated(BuildContext context, Widget page) {
+    if (_token == null || _token!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng đăng nhập lại')),
+      );
+      return;
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => page),
+    );
+  }
 
   Widget buildProposalItem(String title, IconData icon, Color color, VoidCallback onTap) {
     return ListTile(
@@ -31,37 +65,50 @@ class ProposalPage extends StatelessWidget {
         centerTitle: true,
       ),
       body: ListView(
+        padding: const EdgeInsets.only(top: 80),
         children: [
-          buildProposalItem('Đăng ký nghỉ', Icons.airline_seat_individual_suite, Colors.orange, () async {
-            try {
-              final prefs = await SharedPreferences.getInstance();
-              final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
-
-              if (token == null || token.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Vui lòng đăng nhập lại')),
-                );
-                return;
-              }
-              print('===> token trong SharedPreferences: $token');
-
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => LeaveRegistrationPage(token: token),
-                ),
-              );
-            } catch (e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
-              );
-            }
-          }
+          buildProposalItem(
+            'Đăng ký nghỉ',
+            Icons.airline_seat_individual_suite,
+            Colors.orange,
+                () => _navigateIfAuthenticated(
+              context,
+              LeaveRegistrationPage(token: _token!),
+            ),
           ),
-          buildProposalItem('Làm thêm giờ', Icons.calculate, Colors.blue, () {}),
-          buildProposalItem('Giải trình chấm công', Icons.note_alt, Colors.deepOrange, () {}),
-          buildProposalItem('Đổi ca', Icons.sync_alt, Colors.green, () {}),
-          buildProposalItem('Đăng ký ra ngoài', Icons.double_arrow, Colors.indigo, () {}),
+          buildProposalItem(
+            'Xếp ca làm việc',
+            Icons.schedule,
+            Colors.deepPurple,
+                () => _navigateIfAuthenticated(
+              context,
+              WorkScheduleScreen(token: _token!),
+            ),
+          ),
+          buildProposalItem(
+            'Giải trình chấm công',
+            Icons.note_alt,
+            Colors.deepOrange,
+                () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Tính năng đang được phát triển')),
+            ),
+          ),
+          buildProposalItem(
+            'Đổi ca',
+            Icons.sync_alt,
+            Colors.green,
+                () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Tính năng đang được phát triển')),
+            ),
+          ),
+          buildProposalItem(
+            'Làm thêm giờ',
+            Icons.calculate,
+            Colors.blue,
+                () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Tính năng đang được phát triển')),
+            ),
+          ),
         ],
       ),
     );

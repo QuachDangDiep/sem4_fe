@@ -1,7 +1,7 @@
 class Constants{
 
 
-  static const String baseUrl = 'http://192.168.1.15:8080';
+  static const String baseUrl = 'http://10.24.43.211:8080';
 
 
   static const String loginUrl = '$baseUrl/api/auth/login';
@@ -23,6 +23,7 @@ class Constants{
   // infomation
   static String employeeIdByUserIdUrl(String userId) =>
       '$baseUrl/api/employees/employee-id-by-user/$userId';
+  static String get employeeHistoriesUrl => '$baseUrl/api/employee-histories';
 
   static String employeeDetailUrl(String employeeId) =>
       '$baseUrl/api/employees/$employeeId';
@@ -30,6 +31,13 @@ class Constants{
 
   static const String dancesUrl = '$baseUrl/api/attendances';
 
+  static String getRoleByIdUrl(String roleId) => '$baseUrl/api/roles/$roleId';
+
+
   static String summaryUrl(String formattedDate) => '$baseUrl/api/attendances/summary?date=$formattedDate';
+
+  static const String workScheduleInfosUrl = '$baseUrl/api/work-schedule-infos';
+  static const String registerWorkScheduleUrl = '$baseUrl/api/work-schedules';
+
 
 }
