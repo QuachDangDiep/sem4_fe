@@ -179,6 +179,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         }),
       );
 
+
       if (attendanceResponse.statusCode != 200) {
         throw Exception('Lỗi khi tạo bản ghi chấm công: ${attendanceResponse.body}');
       }
@@ -222,6 +223,24 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             }
           ],
         });
+
+      if (attendanceResponse.statusCode == 200) {
+        final shiftsResponse = await http.get(
+          Uri.parse('${Constants.baseUrl}/api/attendances/by-employee/$employeeId'),
+          headers: {'Authorization': 'Bearer $token'},
+        );
+
+        if (shiftsResponse.statusCode == 200) {
+          final shifts = json.decode(shiftsResponse.body);
+          Navigator.pop(context, {
+            'employeeId': employeeId,
+            'qrId': qrInfoId,
+            'shifts': shifts,
+          });
+        } else {
+          throw Exception('Lỗi khi lấy danh sách ca làm');
+        }
+
       } else {
         throw Exception('Không thể lấy dữ liệu ca làm mới');
       }

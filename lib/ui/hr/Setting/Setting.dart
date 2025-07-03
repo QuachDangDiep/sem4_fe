@@ -3,9 +3,7 @@ import 'package:sem4_fe/ui/hr/home/HomeHr.dart';
 import 'package:sem4_fe/ui/hr/Staff/Staff.dart';
 import 'package:sem4_fe/ui/hr/Setting/CompanyInfoSection.dart';
 import 'package:sem4_fe/ui/hr/Setting/AccountSettingsSection.dart';
-import 'package:sem4_fe/ui/hr/Setting/SystemSettingsSection.dart';
 import 'package:sem4_fe/ui/hr/Setting/AccessControlSection.dart';
-import 'package:sem4_fe/ui/hr/Setting/NotificationSettingsSection.dart';
 
 class SettingItem {
   final IconData icon;
@@ -35,9 +33,7 @@ class _HrSettingsPageState extends State<HrSettingsPage> {
   final List<SettingItem> settingItems = [
     SettingItem(Icons.business, 'Thông tin công ty'),
     SettingItem(Icons.person, 'Cài đặt tài khoản'),
-    SettingItem(Icons.settings, 'Cài đặt hệ thống'),
     SettingItem(Icons.lock, 'Quản lý quyền truy cập'),
-    SettingItem(Icons.notifications, 'Thông báo'),
     SettingItem(Icons.info, 'Thông tin ứng dụng'),
   ];
 
@@ -143,12 +139,10 @@ class _HrSettingsPageState extends State<HrSettingsPage> {
                 sectionWrapper(CompanyInfoSection()),
               if (item.title == 'Cài đặt tài khoản' && isExpanded)
                 sectionWrapper(AccountSettingsSection()),
-              if (item.title == 'Cài đặt hệ thống' && isExpanded)
-                sectionWrapper(SystemSettingsSection()),
+
               if (item.title == 'Quản lý quyền truy cập' && isExpanded)
                 sectionWrapper(AccessControlSection()),
-              if (item.title == 'Thông báo' && isExpanded)
-                sectionWrapper(NotificationSettingsSection()),
+
             ],
           );
         },
