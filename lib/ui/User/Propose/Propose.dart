@@ -77,12 +77,12 @@ class _ProposalPageState extends State<ProposalPage> {
             ),
           ),
           buildProposalItem(
-            'Xếp ca làm việc',
+            'Đăng ký ca làm việc',
             Icons.schedule,
             Colors.deepPurple,
                 () => _navigateIfAuthenticated(
               context,
-              WorkScheduleScreen(token: _token!),
+                  WeeklyShiftSelectionScreen(token: _token!,),
             ),
           ),
           buildProposalItem(
