@@ -35,6 +35,11 @@ dependencies:
   firebase_messaging: ^14.7.10
   cloud_firestore: ^4.17.5
   badges: ^3.1.2
+  pdf: ^3.10.6
+  printing: ^5.11.0
+  permission_handler: ^11.0.1
+  googleapis: ^12.0.0
+
 
 
 dev_dependencies:

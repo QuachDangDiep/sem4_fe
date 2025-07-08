@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/LeaveRegistration.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/WorkSchedule.dart';
+import 'package:sem4_fe/ui/User/Propose/Navbar/WorkSchedulePage.dart';
+import 'package:sem4_fe/ui/User/Propose/Navbar/ChangeShiftPage.dart';
+
 
 class ProposalPage extends StatefulWidget {
   const ProposalPage({Key? key}) : super(key: key);
@@ -22,7 +25,9 @@ class _ProposalPageState extends State<ProposalPage> {
   Future<void> _loadToken() async {
     final prefs = await SharedPreferences.getInstance();
     final storedToken = prefs.getString('auth_token');
-    setState(() => _token = storedToken);
+    setState(() {
+      _token = storedToken;
+    });
   }
 
   void _navigateIfAuthenticated(BuildContext context, Widget page) {
@@ -37,6 +42,30 @@ class _ProposalPageState extends State<ProposalPage> {
       context,
       MaterialPageRoute(builder: (_) => page),
     );
+  }
+
+  Future<void> _handleShiftRegistrationNavigation() async {
+    if (_token == null || _token!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Vui lòng đăng nhập lại')),
+      );
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final hasRegistered = prefs.getBool('has_registered_this_week') ?? false;
+
+    if (hasRegistered) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => WorkSchedulePage(token: _token!)),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => WeeklyShiftSelectionScreen(token: _token!)),
+      );
+    }
   }
 
   Widget buildProposalItem(String title, IconData icon, Color color, VoidCallback onTap) {
@@ -78,36 +107,37 @@ class _ProposalPageState extends State<ProposalPage> {
           ),
           buildProposalItem(
             'Đăng ký ca làm việc',
-            Icons.schedule,
+            Icons.note_alt,
             Colors.deepPurple,
-                () => _navigateIfAuthenticated(
-              context,
-                  WeeklyShiftSelectionScreen(token: _token!,),
-            ),
+            _handleShiftRegistrationNavigation,
           ),
           buildProposalItem(
-            'Giải trình chấm công',
-            Icons.note_alt,
+            'Xem lịch làm việc',
+            Icons.schedule,
             Colors.deepOrange,
-                () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Tính năng đang được phát triển')),
+                () => _navigateIfAuthenticated(
+              context,
+              WorkSchedulePage(token: _token!),
             ),
           ),
           buildProposalItem(
             'Đổi ca',
             Icons.sync_alt,
             Colors.green,
-                () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Tính năng đang được phát triển')),
-            ),
-          ),
-          buildProposalItem(
-            'Làm thêm giờ',
-            Icons.calculate,
-            Colors.blue,
-                () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Tính năng đang được phát triển')),
-            ),
+                () {
+              if (_token == null || _token!.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Vui lòng đăng nhập lại')),
+                );
+                return;
+              }
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChangeShiftPage(token: _token!),
+                ),
+              );
+            },
           ),
         ],
       ),
