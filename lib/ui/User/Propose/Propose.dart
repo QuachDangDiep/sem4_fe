@@ -4,6 +4,8 @@ import 'package:sem4_fe/ui/User/Propose/Navbar/LeaveRegistration.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/WorkSchedule.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/WorkSchedulePage.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/ChangeShiftPage.dart';
+import 'package:sem4_fe/ui/User/Propose/Navbar/AttendanceAppealPage.dart';
+
 
 
 class ProposalPage extends StatefulWidget {
@@ -139,6 +141,16 @@ class _ProposalPageState extends State<ProposalPage> {
               );
             },
           ),
+          buildProposalItem(
+            'Giải trình chấm công',
+            Icons.report_problem,
+            Colors.redAccent,
+                () => _navigateIfAuthenticated(
+              context,
+              AttendanceAppealPage(token: _token!),
+            ),
+          ),
+
         ],
       ),
     );
