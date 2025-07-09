@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:sem4_fe/Service/Constants.dart';
 import 'package:http/http.dart' as http;
+import 'package:sem4_fe/Service/Constants.dart';
+import 'package:sem4_fe/ui/login/Login.dart'; // Thêm import màn hình Login nếu cần
 
 class ResetPasswordScreen extends StatefulWidget {
   final String email;
@@ -9,41 +10,58 @@ class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({Key? key, required this.email}) : super(key: key);
 
   @override
-  _ResetPasswordScreenState createState() => _ResetPasswordScreenState();
+  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
 }
 
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
-  final TextEditingController _passwordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmController = TextEditingController();
+  final _passwordFocusNode = FocusNode();
+  final _confirmFocusNode = FocusNode();
+
   bool _isLoading = false;
-  String _errorMessage = '';
+  String _error = '';
+  bool _showPassword = false;
+  bool _showConfirm = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _passwordFocusNode.addListener(() => setState(() {}));
+    _confirmFocusNode.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    _confirmController.dispose();
+    _passwordFocusNode.dispose();
+    _confirmFocusNode.dispose();
+    super.dispose();
+  }
 
   Future<void> _resetPassword() async {
     final newPassword = _passwordController.text.trim();
-    final confirmPassword = _confirmPasswordController.text.trim();
+    final confirmPassword = _confirmController.text.trim();
 
     if (newPassword.isEmpty || confirmPassword.isEmpty) {
-      setState(() {
-        _errorMessage = 'Vui lòng nhập đầy đủ mật khẩu mới và xác nhận mật khẩu.';
-      });
+      setState(() => _error = 'Vui lòng nhập đầy đủ mật khẩu và xác nhận.');
       return;
     }
 
     if (newPassword != confirmPassword) {
-      setState(() {
-        _errorMessage = 'Mật khẩu mới và mật khẩu xác nhận không khớp.';
-      });
+      setState(() => _error = 'Mật khẩu và xác nhận không khớp.');
       return;
     }
 
     setState(() {
       _isLoading = true;
-      _errorMessage = '';
+      _error = '';
     });
 
     try {
       final url = Uri.parse(Constants.resetotpUrl(widget.email));
-      final response = await http.post(
+      final res = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
@@ -52,49 +70,33 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         }),
       );
 
-      final responseData = jsonDecode(response.body);
+      final json = jsonDecode(res.body);
 
-      if (response.statusCode == 200 && responseData['success'] == true) {
+      if (res.statusCode == 200 && json['success'] == true) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Đổi mật khẩu thành công'),
-            backgroundColor: Colors.green,
-            duration: Duration(seconds: 2),
-          ),
+              content: Text('Đổi mật khẩu thành công'),
+              backgroundColor: Colors.green),
         );
-
         await Future.delayed(const Duration(seconds: 2));
-
-        Navigator.pushReplacementNamed(context, '/login');
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const LoginScreen()),
+        );
       } else {
-        setState(() {
-          _errorMessage = responseData['message'] ?? 'Đổi mật khẩu thất bại.';
-        });
+        setState(() => _error = json['message'] ?? 'Đổi mật khẩu thất bại');
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Lỗi kết nối: ${e.toString()}';
-      });
+      setState(() => _error = 'Lỗi kết nối: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      setState(() => _isLoading = false);
     }
   }
 
   @override
-  void dispose() {
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    const Color customBlue = Color(0xFF2424E6);
-    const Color customOrange = Color(0xFFFF8F00);
-    const Color darkText = Color(0xFF222222);
-    const Color lightGrey = Color(0xFFF5F5F7);
+    const orange = Color(0xFFFF9800);
+    const gray = Colors.grey;
 
     final screenWidth = MediaQuery.of(context).size.width;
     final padding = screenWidth * 0.08;
@@ -102,215 +104,249 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     return Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
           colors: [
             Color(0xFFFFB300),
             Color(0xFFFF8F00),
             Color(0xFFF57C00),
-            Color(0xFFEF6C00),
+            Color(0xFFEF6C00)
           ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: padding, vertical: 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ColorFiltered(
-                  colorFilter: const ColorFilter.mode(
-                    Colors.white,
-                    BlendMode.srcIn,
-                  ),
-                  child: Image.network(
-                    'https://app.easyhrm.vn/image/easyhrmlogo.png',
-                    height: 70,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.error, size: 48),
+        body: Stack(
+          children: [
+            Align(
+              alignment: Alignment.bottomLeft,
+              child: Transform.translate(
+                offset: const Offset(-130, 80),
+                child: Transform.rotate(
+                  angle: -0.2,
+                  child: ClipPath(
+                    clipper: BottomLeftCutClipper(),
+                    child: Container(
+                        width: 420, height: 420, color: Colors.white),
                   ),
                 ),
-                const SizedBox(height: 32),
-
-                Container(
-                  constraints: const BoxConstraints(minHeight: 440),
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.grey.shade300, width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.05),
-                        blurRadius: 20,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.arrow_back,
-                                color: customOrange, size: 28),
-                            onPressed: () => Navigator.pop(context),
-                            splashRadius: 24,
-                            tooltip: 'Quay lại',
-                          ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            'Đặt lại mật khẩu',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w700,
-                              color: darkText,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 18),
-                      const Text(
-                        'Nhập mật khẩu mới cho tài khoản:',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w500,
-                          color: darkText,
-                          height: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        widget.email,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 17,
-                          color: customBlue,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 30),
-                      TextField(
-                        controller: _passwordController,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          labelText: 'Mật khẩu mới',
-                          labelStyle: const TextStyle(color: customOrange),
-                          filled: true,
-                          fillColor: lightGrey,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 14),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide:
-                            BorderSide(color: Colors.grey.shade300, width: 1.5),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide:
-                            BorderSide(color: Colors.grey.shade300, width: 1.5),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: customOrange, width: 2),
-                          ),
-                          prefixIcon: const Icon(Icons.lock_outline, color: customOrange),
-                        ),
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(height: 20),
-                      TextField(
-                        controller: _confirmPasswordController,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          labelText: 'Xác nhận mật khẩu',
-                          labelStyle: const TextStyle(color: customOrange),
-                          filled: true,
-                          fillColor: lightGrey,
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 20, vertical: 14),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide:
-                            BorderSide(color: Colors.grey.shade300, width: 1.5),
-                          ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide:
-                            BorderSide(color: Colors.grey.shade300, width: 1.5),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            borderSide: BorderSide(color: customOrange, width: 2),
-                          ),
-                          prefixIcon: const Icon(Icons.lock, color: customOrange),
-                        ),
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(height: 18),
-                      if (_errorMessage.isNotEmpty)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: Colors.red.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.red.shade200),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.error_outline,
-                                  color: Colors.red, size: 20),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _errorMessage,
-                                  style: const TextStyle(
-                                      color: Colors.red, fontSize: 14),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      const SizedBox(height: 28),
-                      _isLoading
-                          ? const Center(
-                          child: CircularProgressIndicator(color: customOrange))
-                          : SizedBox(
-                        width: double.infinity,
-                        height: 52,
-                        child: ElevatedButton(
-                          onPressed: _resetPassword,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: customOrange,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(18),
-                            ),
-                            elevation: 8,
-                            shadowColor: customOrange.withOpacity(0.6),
-                          ),
-                          child: const Text(
-                            'Xác nhận',
-                            style: TextStyle(
-                                fontSize: 17, fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              ),
             ),
-          ),
+            Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(horizontal: padding),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ColorFiltered(
+                      colorFilter: const ColorFilter.mode(
+                          Colors.white, BlendMode.srcIn),
+                      child: Image.network(
+                        'https://app.easyhrm.vn/image/easyhrmlogo.png',
+                        height: 70,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(height: 35),
+                    Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.all(24),
+                            margin: const EdgeInsets.only(bottom: 70),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border:
+                              Border.all(color: orange, width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  blurRadius: 12,
+                                  spreadRadius: 4,
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.arrow_back,
+                                          color: orange),
+                                      onPressed: () =>
+                                          Navigator.pop(context),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      'Đặt lại mật khẩu',
+                                      style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'Nhập mật khẩu mới cho tài khoản:',
+                                  style: TextStyle(color: orange),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(widget.email,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blueAccent)),
+                                const SizedBox(height: 24),
+                                const Text('Mật khẩu mới (*)'),
+                                const SizedBox(height: 6),
+                                TextField(
+                                  controller: _passwordController,
+                                  focusNode: _passwordFocusNode,
+                                  obscureText: !_showPassword,
+                                  cursorColor: orange,
+                                  decoration: InputDecoration(
+                                    hintText: 'Nhập mật khẩu',
+                                    prefixIcon: Icon(Icons.lock,
+                                        color: (_passwordFocusNode
+                                            .hasFocus ||
+                                            _showPassword)
+                                            ? orange
+                                            : gray),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _showPassword
+                                            ? Icons.visibility_off
+                                            : Icons.visibility,
+                                        color: _showPassword
+                                            ? orange
+                                            : gray,
+                                      ),
+                                      onPressed: () => setState(() {
+                                        _showPassword = !_showPassword;
+                                      }),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius:
+                                      BorderRadius.circular(12),
+                                      borderSide:
+                                      const BorderSide(color: gray),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius:
+                                      BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                          color: orange, width: 2),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                const Text('Xác nhận mật khẩu (*)'),
+                                const SizedBox(height: 6),
+                                TextField(
+                                  controller: _confirmController,
+                                  focusNode: _confirmFocusNode,
+                                  obscureText: !_showConfirm,
+                                  cursorColor: orange,
+                                  decoration: InputDecoration(
+                                    hintText: 'Nhập lại mật khẩu',
+                                    prefixIcon: Icon(Icons.lock_outline,
+                                        color: (_confirmFocusNode
+                                            .hasFocus ||
+                                            _showConfirm)
+                                            ? orange
+                                            : gray),
+                                    suffixIcon: IconButton(
+                                      icon: Icon(
+                                        _showConfirm
+                                            ? Icons.visibility_off
+                                            : Icons.visibility,
+                                        color: _showConfirm
+                                            ? orange
+                                            : gray,
+                                      ),
+                                      onPressed: () => setState(() {
+                                        _showConfirm = !_showConfirm;
+                                      }),
+                                    ),
+                                    enabledBorder: OutlineInputBorder(
+                                      borderRadius:
+                                      BorderRadius.circular(12),
+                                      borderSide:
+                                      const BorderSide(color: gray),
+                                    ),
+                                    focusedBorder: OutlineInputBorder(
+                                      borderRadius:
+                                      BorderRadius.circular(12),
+                                      borderSide: const BorderSide(
+                                          color: orange, width: 2),
+                                    ),
+                                  ),
+                                ),
+                                if (_error.isNotEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  Text(_error,
+                                      style: const TextStyle(
+                                          color: Colors.red, fontSize: 14)),
+                                ],
+                                const SizedBox(height: 15),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 50,
+                                  child: ElevatedButton(
+                                    onPressed: _isLoading
+                                        ? null
+                                        : _resetPassword,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: orange,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                          BorderRadius.circular(12)),
+                                    ),
+                                    child: _isLoading
+                                        ? const CircularProgressIndicator(
+                                        color: Colors.white)
+                                        : const Text(
+                                      'Xác nhận',
+                                      style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
+}
+
+class BottomLeftCutClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.moveTo(0, 0);
+    path.lineTo(size.width, 0);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.lineTo(0, size.height * 0.6);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

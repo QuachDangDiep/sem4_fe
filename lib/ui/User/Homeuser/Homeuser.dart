@@ -41,9 +41,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   List<dynamic> workShifts = [];
 
-  List<dynamic> workShifts = [];
-
-
   @override
   void initState() {
     super.initState();
@@ -182,7 +179,6 @@ class _HomeScreenState extends State<HomeScreen> {
         final imageUrl = data['img']?.toString();
         print('Ảnh lấy được từ API: ${data['img']}');
 
-
         if (mounted) {
           setState(() {
             avatarUrl = imageUrl != null && imageUrl.isNotEmpty
@@ -196,7 +192,6 @@ class _HomeScreenState extends State<HomeScreen> {
         }
 
         print('Thông tin chi tiết nhân viên: $data');
-
 
         // Kiểm tra và xử lý URL ảnh
         if (imageUrl != null && imageUrl.isNotEmpty) {
@@ -253,15 +248,12 @@ class _HomeScreenState extends State<HomeScreen> {
       if (token == null || employeeId == null) return;
 
       final response = await http.get(
-
         Uri.parse(Constants.qrAttendancesByEmployeeUrl(employeeId)),
-
         headers: {'Authorization': 'Bearer $token'},
       );
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-
 
         // Sắp xếp bản ghi theo thời gian giảm dần
         data.sort((a, b) =>
@@ -297,17 +289,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
 
-
-        setState(() {
-          workShifts = data;
-        });
-      }
-    } catch (e) {
-      print('Lỗi fetchWorkShifts: $e');
-    }
-  }
-
-
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -334,28 +315,88 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Text(
                       'Chọn phương thức chấm công',
                       style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
                         color: Colors.black87,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    _buildCheckInOption(
-                      icon: Icons.gps_fixed,
-                      title: 'GPS',
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        _navigateToFaceAttendance();
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _buildCheckInOption(
-                      icon: Icons.qr_code,
-                      title: 'QrCode',
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        _navigateToQRScanner();
-                      },
+                    const SizedBox(height: 24),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              _navigateToFaceAttendance();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 6,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(Icons.gps_fixed, color: Colors.blue, size: 40),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'GPS',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.blue.shade800,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.of(context).pop();
+                              _navigateToQRScanner();
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 20),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 6,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                children: [
+                                  Icon(Icons.qr_code_2, color: Colors.green, size: 40),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    'QR Code',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.green.shade800,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

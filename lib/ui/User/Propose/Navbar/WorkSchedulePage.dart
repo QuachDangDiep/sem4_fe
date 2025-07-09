@@ -110,8 +110,17 @@ class _WorkSchedulePageState extends State<WorkSchedulePage> {
 
     if (res.statusCode == 200) {
       final data = jsonDecode(res.body);
+      final List<dynamic> rawSchedules = data['result'] ?? [];
+
+      // ✅ Sắp xếp theo ngày làm việc (workDay) tăng dần
+      rawSchedules.sort((a, b) {
+        final dateA = DateTime.tryParse(a['workDay']) ?? DateTime(2000);
+        final dateB = DateTime.tryParse(b['workDay']) ?? DateTime(2000);
+        return dateA.compareTo(dateB);
+      });
+
       setState(() {
-        schedules = data['result'] ?? [];
+        schedules = rawSchedules;
       });
     }
 
@@ -138,6 +147,17 @@ class _WorkSchedulePageState extends State<WorkSchedulePage> {
         notificationDetails,
       );
     }
+  }
+
+  String _getFormattedDate(String iso) {
+    final day = DateTime.parse(iso);
+    return "${_getWeekday(day.weekday)}, ${day.day.toString().padLeft(2, '0')}/${day.month.toString().padLeft(2, '0')}/${day.year}";
+  }
+
+  String _getFormattedTimeRange(dynamic item) {
+    final start = _formatTime(item['defaultStartTime'] ?? item['startTime'] ?? '');
+    final end = _formatTime(item['defaultEndTime'] ?? item['endTime'] ?? '');
+    return "$start - $end";
   }
 
   String _formatTime(String timeStr) {
@@ -256,60 +276,116 @@ class _WorkSchedulePageState extends State<WorkSchedulePage> {
   }
 
   Widget _buildWeekSelector() {
-    return DropdownButton<String>(
-      value: selectedWeekLabel,
-      isExpanded: true,
-      items: weekOptions.map((week) {
-        return DropdownMenuItem<String>(
-          value: week['label'],
-          child: Text(week['label']),
-        );
-      }).toList(),
-      onChanged: (value) async {
-        if (value != null) {
-          setState(() => selectedWeekLabel = value);
-
-          if (value == "Tùy chọn") {
-            final picked = await showDateRangePicker(
-              context: context,
-              firstDate: DateTime(2022),
-              lastDate: DateTime.now().add(const Duration(days: 365)),
-            );
-            if (picked != null) {
-              await _fetchScheduleByWeek(picked.start, picked.end);
-            }
-          } else {
-            final selected = weekOptions.firstWhere((w) => w['label'] == value);
-            await _fetchScheduleByWeek(selected['from'], selected['to']);
-          }
-        }
-      },
+    return Row(
+      children: [
+        const Icon(Icons.calendar_today, color: Colors.orange),
+        const SizedBox(width: 8),
+        Text(
+          "Chọn tuần:",
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: PopupMenuButton<String>(
+            onSelected: (value) async {
+              setState(() => selectedWeekLabel = value);
+              if (value == "Tùy chọn") {
+                final picked = await showDateRangePicker(
+                  context: context,
+                  firstDate: DateTime(2022),
+                  lastDate: DateTime.now().add(const Duration(days: 365)),
+                );
+                if (picked != null) {
+                  await _fetchScheduleByWeek(picked.start, picked.end);
+                }
+              } else {
+                final selected = weekOptions.firstWhere((w) => w['label'] == value);
+                await _fetchScheduleByWeek(selected['from'], selected['to']);
+              }
+            },
+            itemBuilder: (context) => weekOptions
+                .map((week) => PopupMenuItem<String>(
+              value: week['label'],
+              child: Text(week['label']),
+            ))
+                .toList(),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                border: Border.all(color: Colors.orange),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    selectedWeekLabel,
+                    style: const TextStyle(fontSize: 16),
+                  ),
+                  const Icon(Icons.arrow_drop_down, color: Colors.orange),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Lịch làm việc"), backgroundColor: Colors.deepOrange),
+      appBar: AppBar(
+        title: const Text(
+          "Lịch làm việc",
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 20,
+              color: Colors.white,
+            ),
+        ),
+        centerTitle: true, // ✅ Căn giữa
+        backgroundColor: Colors.orange, // ✅ Màu nền cam
+      ),
       body: Column(
         children: [
-          Padding(padding: const EdgeInsets.all(12), child: _buildWeekSelector()),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: _buildWeekSelector(),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: Row(
               children: [
-                ElevatedButton.icon(
-                  onPressed: _exportToPDF,
-                  icon: const Icon(Icons.picture_as_pdf),
-                  label: const Text("Xem PDF"),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _exportToPDF,
+                    icon: const Icon(Icons.picture_as_pdf),
+                    label: const Text("Xem PDF"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepOrange,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: _savePDFToFile,
-                  icon: const Icon(Icons.download),
-                  label: const Text("Tải về"),
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-                )
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: _savePDFToFile,
+                    icon: const Icon(Icons.download),
+                    label: const Text("Tải về"),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green.shade700,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -318,25 +394,67 @@ class _WorkSchedulePageState extends State<WorkSchedulePage> {
                 ? const Center(child: CircularProgressIndicator())
                 : schedules.isEmpty
                 ? const Center(
-              child: Text("⚠️ Tuần này bạn không có lịch làm việc nào.",
-                  style: TextStyle(fontSize: 16, color: Colors.red)),
+              child: Text(
+                "⚠️ Tuần này bạn không có lịch làm việc nào.",
+                style: TextStyle(fontSize: 16, color: Colors.red),
+              ),
             )
-                : ListView.builder(
+                : ListView.separated(
               itemCount: schedules.length,
+              separatorBuilder: (context, index) => const Divider(height: 1),
               itemBuilder: (context, index) {
                 final item = schedules[index];
-                return ListTile(
-                  title: Text(item['scheduleInfoName'] ?? "Chưa rõ ca"),
-                  subtitle: Text(
-                    _buildDetailedScheduleText(
-                      item['workDay'],
-                      item['defaultStartTime'],
-                      item['defaultEndTime'],
-                      item['startTime'],
-                      item['endTime'],
+                return Card(
+                  margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                  elevation: 4,
+                  color: Colors.white,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.work_outline, color: Colors.orange),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                item['scheduleInfoName'] ?? "Chưa rõ ca",
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Icon(Icons.calendar_today, size: 20, color: Colors.grey),
+                            const SizedBox(width: 6),
+                            Text(
+                              _getFormattedDate(item['workDay']),
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.access_time, size: 20, color: Colors.grey),
+                            const SizedBox(width: 6),
+                            Text(
+                              _getFormattedTimeRange(item),
+                              style: const TextStyle(fontSize: 15),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  leading: const Icon(Icons.schedule, color: Colors.deepOrange),
                 );
               },
             ),

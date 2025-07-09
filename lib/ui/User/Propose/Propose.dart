@@ -96,7 +96,6 @@ class _ProposalPageState extends State<ProposalPage> {
         centerTitle: true,
       ),
       body: ListView(
-        padding: const EdgeInsets.only(top: 80),
         children: [
           buildProposalItem(
             'Đăng ký nghỉ',

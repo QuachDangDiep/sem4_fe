@@ -52,12 +52,29 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
             showDialog(
               context: context,
               builder: (_) => AlertDialog(
-                title: const Text("Thông báo"),
-                content: const Text("Bạn đã đăng ký ca làm cho tuần này rồi.\nChuyển sang xem lịch làm việc?"),
+                backgroundColor: Colors.white, // hoặc Color(0xFFFFF3E0) cho cam nhạt
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                title: const Text(
+                  "Thông báo",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                    color: Colors.orange,
+                  ),
+                ),
+                content: const Text(
+                  "Bạn đã đăng ký ca làm cho tuần này rồi.\nChuyển sang xem lịch làm việc?",
+                  style: TextStyle(fontSize: 16, color: Colors.black87),
+                ),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text("Ở lại"),
+                    child: const Text(
+                      "Ở lại",
+                      style: TextStyle(color: Colors.grey),
+                    ),
                   ),
                   TextButton(
                     onPressed: () {
@@ -67,7 +84,10 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
                         MaterialPageRoute(builder: (_) => WorkSchedulePage(token: widget.token)),
                       );
                     },
-                    child: const Text("Xem lịch"),
+                    child: const Text(
+                      "Xem lịch",
+                      style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
@@ -94,27 +114,28 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
       final data = jsonDecode(response.body);
       shiftInfos = data['result'];
 
+      List<DateTime> tempWeekDays = [];
       final today = DateTime.now();
+
       for (int i = 0; i < 7; i++) {
         final date = today.add(Duration(days: i));
         final formatted = _formatDate(date);
-        weekDays.add(date);
+        tempWeekDays.add(date);
         selectedShiftsPerDay[formatted] = {};
 
         final registered = await _fetchRegisteredShifts(formatted);
         registeredShifts[formatted] = registered;
-
-        debugPrint("📅 $formatted - Số ca đã đăng ký: ${registered.length}");
 
         if (registered.isNotEmpty) {
           _hasRegisteredAnyShift = true;
         }
       }
 
+// 👉 Sắp xếp lại ngày theo thứ tự mới nhất → cũ nhất
+      weekDays = tempWeekDays;
       setState(() {});
     }
   }
-
 
   Future<Set<String>> _fetchRegisteredShifts(String date) async {
     final response = await http.get(
@@ -122,14 +143,12 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
       headers: {'Authorization': 'Bearer ${widget.token}'},
     );
 
-
-
     final Set<String> result = {};
     if (response.statusCode == 200) {
       final data = jsonDecode(response.body);
       if (data['result'] is List) {
         for (var item in data['result']) {
-         // final scheduleInfo = item['scheduleInfo'];
+          // final scheduleInfo = item['scheduleInfo'];
           if (item['scheduleInfoId'] != null) {
             final shiftId = item['scheduleInfoId'];
             debugPrint("✅ Đã đăng ký shiftId: $shiftId vào ngày $date");
@@ -168,33 +187,17 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
         final endTimeStr = info['defaultEndTime'];
 
         try {
-          final workDay = DateTime.parse(date);
           final startParts = startTimeStr.split(':').map(int.parse).toList();
           final endParts = endTimeStr.split(':').map(int.parse).toList();
 
-          final startTime = DateTime(
-            workDay.year,
-            workDay.month,
-            workDay.day,
-            startParts[0],
-            startParts[1],
-            startParts[2],
-          ).toIso8601String();
-
-          final endTime = DateTime(
-            workDay.year,
-            workDay.month,
-            workDay.day,
-            endParts[0],
-            endParts[1],
-            endParts[2],
-          ).toIso8601String();
+          final startTime = "${startParts[0].toString().padLeft(2, '0')}:${startParts[1].toString().padLeft(2, '0')}:${startParts[2].toString().padLeft(2, '0')}";
+          final endTime = "${endParts[0].toString().padLeft(2, '0')}:${endParts[1].toString().padLeft(2, '0')}:${endParts[2].toString().padLeft(2, '0')}";
 
           payload.add({
             "employeeId": employeeId,
             "scheduleInfoId": shiftId,
             "workDay": date,
-            "startTime": startTime,
+            "startTime": startTime, // 👈 gửi dạng HH:mm:ss
             "endTime": endTime,
             "status": "Active",
           });
@@ -270,31 +273,51 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
   Widget build(BuildContext context) {
     if (isLoading || shiftInfos.isEmpty || weekDays.isEmpty || employeeId == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text("Đăng ký ca")),
+        appBar: AppBar(title: const Text("Đăng ký ca",style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+          color: Colors.white,
+        ),)),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text("Đăng ký ca làm theo tuần")),
+      appBar: AppBar(
+        title: const Text(
+          "Đăng ký ca làm theo tuần",
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+        ),
+        centerTitle: true, // ✅ Căn giữa tiêu đề
+        backgroundColor: Colors.orange, // ✅ Màu nền cam
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         children: weekDays.map((date) {
           final formatted = _formatDate(date);
           return Card(
-            margin: const EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-            elevation: 3,
+            elevation: 4,
+            margin: const EdgeInsets.symmetric(vertical: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             child: Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Ngày $formatted", style: const TextStyle(fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 6),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 6,
-                    children: shiftInfos.map((shift) {
+                  Text(
+                    "Ngày $formatted",
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Column(
+                    children: ([...shiftInfos]
+                      ..sort((a, b) => a['defaultStartTime'].compareTo(b['defaultStartTime'])))
+                        .map((shift) {
                       final shiftId = shift['scheduleInfoId'];
                       final shiftName = shift['name'];
                       final start = _formatTime(shift['defaultStartTime']);
@@ -302,35 +325,111 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
                       final isRegistered = registeredShifts[formatted]!.contains(shiftId);
                       final isSelected = selectedShiftsPerDay[formatted]!.contains(shiftId);
 
-                      return FilterChip(
-                        label: Text("$shiftName ($start - $end)"),
-                        selected: isSelected,
-                        onSelected: isRegistered ? null : (_) => _toggleShift(formatted, shiftId),
-                        selectedColor: _getShiftColor(isRegistered: isRegistered, isSelected: isSelected),
-                        backgroundColor: _getShiftColor(isRegistered: isRegistered, isSelected: isSelected),
-                        labelStyle: TextStyle(
-                          color: isRegistered ? Colors.black38 : Colors.black,
+                      // 🎨 Cập nhật màu sắc hiện đại hơn
+                      Color bgColor;
+                      IconData icon;
+                      Color textColor;
+                      Color borderColor;
+
+                      if (isRegistered) {
+                        bgColor = const Color(0xFFE0E0E0); // Light Grey
+                        icon = Icons.lock_outline;
+                        textColor = Colors.black45;
+                        borderColor = Colors.transparent;
+                      } else if (isSelected) {
+                        bgColor = const Color(0xFF4CAF50); // Nice Green
+                        icon = Icons.check_circle_outline;
+                        textColor = Colors.white;
+                        borderColor = Colors.transparent;
+                      } else {
+                        bgColor = const Color(0xFFF5F5F5); // Soft background
+                        icon = Icons.schedule;
+                        textColor = Colors.black87;
+                        borderColor = const Color(0xFFE0E0E0);
+                      }
+
+                      return GestureDetector(
+                        onTap: isRegistered ? null : () => _toggleShift(formatted, shiftId),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                          decoration: BoxDecoration(
+                            color: bgColor,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: borderColor,
+                              width: 1.2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black12,
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              )
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(icon, color: textColor, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  "$shiftName ($start - $end)",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: textColor,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       );
                     }).toList(),
-                  )
+                  ),
                 ],
               ),
             ),
           );
         }).toList(),
       ),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: ElevatedButton.icon(
-          onPressed: _submitSelectedSchedules,
-          icon: const Icon(Icons.send),
-          label: const Text("Đăng ký tất cả"),
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            backgroundColor: Colors.deepOrange,
-            foregroundColor: Colors.white,
-            textStyle: const TextStyle(fontSize: 16),
+      bottomNavigationBar: IgnorePointer(
+        ignoring: _hasRegisteredAnyShift, // 👉 Vô hiệu hóa khi đã đăng ký
+        child: Opacity(
+          opacity: _hasRegisteredAnyShift ? 0.4 : 1.0, // 👉 Làm mờ khi đã đăng ký
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black12,
+                  offset: Offset(0, -1),
+                  blurRadius: 8,
+                ),
+              ],
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton.icon(
+                onPressed: _submitSelectedSchedules,
+                icon: const Icon(Icons.check_circle, size: 24),
+                label: const Text(
+                  "Đăng ký tất cả",
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 4,
+                ),
+              ),
+            ),
           ),
         ),
       ),

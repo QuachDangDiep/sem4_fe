@@ -43,7 +43,8 @@ class _NotificationPageState extends State<NotificationPage> {
       baseQuery = baseQuery.where('title', isGreaterThanOrEqualTo: searchText);
     }
 
-    _notificationStream = baseQuery.orderBy('sentAt', descending: true).snapshots();
+    _notificationStream =
+        baseQuery.orderBy('sentAt', descending: true).snapshots();
   }
 
   void fetchUnreadCount() async {
@@ -61,21 +62,21 @@ class _NotificationPageState extends State<NotificationPage> {
   void setupForegroundHandler() {
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       if (message.notification != null) {
-      //   showDialog(
-      //     context: navigatorKey.currentContext!,
-      //     builder: (_) => AlertDialog(
-      //       title: Text(message.notification!.title ?? 'Thông báo'),
-      //       content: Text(message.notification!.body ?? ''),
-      //       actions: [
-      //         TextButton(
-      //           onPressed: () => Navigator.pop(context),
-      //           child: Text('Đóng'),
-      //         ),
-      //       ],
-      //     ),
-      //   );
+        //   showDialog(
+        //     context: navigatorKey.currentContext!,
+        //     builder: (_) => AlertDialog(
+        //       title: Text(message.notification!.title ?? 'Thông báo'),
+        //       content: Text(message.notification!.body ?? ''),
+        //       actions: [
+        //         TextButton(
+        //           onPressed: () => Navigator.pop(context),
+        //           child: Text('Đóng'),
+        //         ),
+        //       ],
+        //     ),
+        //   );
         fetchUnreadCount();
-       }
+      }
     });
   }
 
@@ -112,35 +113,51 @@ class _NotificationPageState extends State<NotificationPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Thông báo'),
+        title: Text('Thông báo', style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+          color: Colors.white,
+        ),
+        ),
         actions: [
           IconButton(icon: Icon(Icons.delete_sweep), onPressed: deleteAll),
         ],
         backgroundColor: Colors.orange,
+        centerTitle: true,
       ),
       body: Column(
         children: [
-          Row(
-            children: [
-              Checkbox(
-                value: showOnlyUnread,
-                onChanged: (val) {
-                  setState(() {
-                    showOnlyUnread = val!;
-                    updateStream();
-                  });
-                },
-              ),
-              Text("Chỉ hiện chưa đọc"),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            color: Colors.grey.shade100,
+            child: Row(
+              children: [
+                Checkbox(
+                  value: showOnlyUnread,
+                  onChanged: (val) {
+                    setState(() {
+                      showOnlyUnread = val!;
+                      updateStream();
+                    });
+                  },
+                ),
+                const Text("Chỉ chưa đọc"),
+                const Spacer(),
+                Expanded(
+                  flex: 3,
                   child: TextField(
                     decoration: InputDecoration(
-                      hintText: "Tìm kiếm...",
-                      border: OutlineInputBorder(),
-                      isDense: true,
-                      contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                      hintText: "🔍 Tìm kiếm...",
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      filled: true,
+                      fillColor: Colors.white,
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: const BorderSide(color: Colors.orange),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     onChanged: (text) {
                       searchText = text;
@@ -148,47 +165,79 @@ class _NotificationPageState extends State<NotificationPage> {
                     },
                   ),
                 ),
-              )
-            ],
+              ],
+            ),
           ),
+          const Divider(height: 1),
           Expanded(
             child: StreamBuilder<QuerySnapshot>(
               stream: _notificationStream,
               builder: (context, snapshot) {
                 if (!snapshot.hasData) {
-                  return Center(child: CircularProgressIndicator());
+                  return const Center(child: CircularProgressIndicator());
                 }
 
                 if (snapshot.data!.docs.isEmpty) {
-                  return Center(child: Text("Không có thông báo nào"));
+                  return const Center(child: Text("📭 Không có thông báo nào"));
                 }
 
-                List<AppNotification> notiList = snapshot.data!.docs.map((doc) {
-                  return AppNotification.fromMap(doc.id, doc.data() as Map<String, dynamic>);
+                final notiList = snapshot.data!.docs.map((doc) {
+                  return AppNotification.fromMap(
+                      doc.id, doc.data() as Map<String, dynamic>);
                 }).toList();
 
-                return ListView.builder(
+                return ListView.separated(
+                  padding: const EdgeInsets.all(12),
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemCount: notiList.length,
                   itemBuilder: (context, index) {
                     final noti = notiList[index];
-                    return ListTile(
-                      leading: Icon(
-                        noti.isRead ? Icons.mark_email_read : Icons.mark_email_unread,
-                        color: noti.isRead ? Colors.grey : Colors.orange,
-                      ),
-                      title: Text(noti.title),
-                      subtitle: Text(noti.message),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text("${noti.createdAt.hour}:${noti.createdAt.minute}"),
-                          IconButton(
-                            icon: Icon(Icons.delete, color: Colors.red),
-                            onPressed: () => deleteNotification(noti.id),
+                    return Card(
+                      elevation: 3,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                      child: ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: noti.isRead
+                              ? Colors.grey.shade300
+                              : Colors.orange,
+                          child: Icon(
+                            noti.isRead ? Icons.mark_email_read : Icons
+                                .mark_email_unread,
+                            color: Colors.white,
                           ),
-                        ],
+                        ),
+                        title: Text(
+                          noti.title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: noti.isRead ? Colors.grey : Colors.black87,
+                          ),
+                        ),
+                        subtitle: Text(
+                          noti.message,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              "${noti.createdAt.hour.toString().padLeft(
+                                  2, '0')}:${noti.createdAt.minute
+                                  .toString()
+                                  .padLeft(2, '0')}",
+                              style: const TextStyle(
+                                  fontSize: 13, color: Colors.grey),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () => deleteNotification(noti.id),
+                            ),
+                          ],
+                        ),
+                        onTap: () => markAsRead(noti.id),
                       ),
-                      onTap: () => markAsRead(noti.id),
                     );
                   },
                 );

@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sem4_fe/Service/Constants.dart';
+import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
 class Attendance {
@@ -89,6 +90,10 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
 
   String? selectedStatus;
   final List<String> statusOptions = ['All', 'Present', 'Absent', 'Late', 'On Leave'];
+
+  int selectedMonth = DateTime.now().month;
+
+  final List<String> months = List.generate(12, (index) => 'Tháng ${index + 1}');
 
   bool _isLoading = false;
 
@@ -193,8 +198,14 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tổng hợp chấm công'),
-        backgroundColor: const Color(0xFFF57C00),
+        centerTitle: true,
+        title: const Text('Tổng hợp chấm công', style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+          color: Colors.white,
+        ),
+      ),
+        backgroundColor: Colors.orange,
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -202,90 +213,120 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
         onRefresh: _loadAttendances,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16.0),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+              Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+                margin: const EdgeInsets.only(bottom: 12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
                     children: [
-                      Text('Từ: ${DateFormat('dd/MM/yyyy').format(fromDate)}'),
-                      Text('Đến: ${DateFormat('dd/MM/yyyy').format(toDate)}'),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Icon(Icons.calendar_month_outlined, color: Colors.orange, size: 22),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.grey.withOpacity(0.15),
+                                    spreadRadius: 1,
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              padding: const EdgeInsets.symmetric(horizontal: 12),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<int>(
+                                  value: selectedMonth,
+                                  icon: const Icon(Icons.expand_more_rounded, color: Colors.orange),
+                                  dropdownColor: Colors.white,
+                                  style: const TextStyle(color: Colors.black, fontSize: 14),
+                                  borderRadius: BorderRadius.circular(12),
+                                  isExpanded: true,
+                                  items: List.generate(12, (index) {
+                                    final month = index + 1;
+                                    return DropdownMenuItem<int>(
+                                      value: month,
+                                      child: Text('Tháng $month'),
+                                    );
+                                  }),
+                                  onChanged: (value) {
+                                    if (value != null) {
+                                      setState(() {
+                                        selectedMonth = value;
+                                        final now = DateTime.now();
+                                        fromDate = DateTime(now.year, selectedMonth, 1);
+                                        toDate = DateTime(now.year, selectedMonth + 1, 0);
+                                      });
+                                      _loadAttendances();
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Trạng thái:'),
+                          DropdownButton<String>(
+                            value: selectedStatus ?? 'All',
+                            style: const TextStyle(fontSize: 14, color: Colors.black),
+                            borderRadius: BorderRadius.circular(12),
+                            items: statusOptions.map((status) {
+                              return DropdownMenuItem<String>(
+                                value: status,
+                                child: Text(status),
+                              );
+                            }).toList(),
+                            onChanged: (value) async {
+                              setState(() => selectedStatus = value);
+                              await _loadAttendances();
+                            },
+                          ),
+                        ],
+                      ),
                     ],
                   ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.date_range),
-                        tooltip: 'Từ ngày',
-                        onPressed: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: fromDate,
-                            firstDate: DateTime(2000),
-                            lastDate: DateTime.now(),
-                          );
-                          if (picked != null) {
-                            setState(() => fromDate = picked);
-                            await _loadAttendances();
-                          }
-                        },
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.date_range_outlined),
-                        tooltip: 'Đến ngày',
-                        onPressed: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: toDate,
-                            firstDate: fromDate,
-                            lastDate: DateTime.now(),
-                          );
-                          if (picked != null) {
-                            setState(() => toDate = picked);
-                            await _loadAttendances();
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Trạng thái:'),
-                  DropdownButton<String>(
-                    value: selectedStatus ?? 'All',
-                    items: statusOptions.map((status) {
-                      return DropdownMenuItem<String>(
-                        value: status,
-                        child: Text(status),
-                      );
-                    }).toList(),
-                    onChanged: (value) async {
-                      setState(() => selectedStatus = value);
-                      await _loadAttendances();
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              ElevatedButton.icon(
-                onPressed: _exportToExcel,
-                icon: const Icon(Icons.download),
-                label: const Text('Xuất Excel'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFB300),
-                  foregroundColor: Colors.white,
                 ),
               ),
+
+              // Nút export
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: _exportToExcel,
+                  icon: const Icon(Icons.download),
+                  label: const Text('Xuất Excel'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFFB300),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+              const Text('📝 Danh sách chấm công:',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
-              const Text('Danh sách chấm công:', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
+
+              // Danh sách chấm công
               ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -294,19 +335,33 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                   final att = _attendances[index];
                   return Card(
                     elevation: 3,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     margin: const EdgeInsets.symmetric(vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     child: ListTile(
                       leading: CircleAvatar(
                         backgroundColor: const Color(0xFFF57C00),
-                        child: Text(att.employeeId.substring(0, 2), style: const TextStyle(color: Colors.white)),
+                        child: Text(
+                          att.employeeId.substring(0, 2).toUpperCase(),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
                       ),
-                      title: Text(att.employeeId, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Text(
-                        'Ngày: ${DateFormat('dd/MM/yyyy').format(att.attendanceDate)}\nTrạng thái: ${att.status}',
+                      title: Text(att.employeeId,
+                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('📅 Ngày: ${DateFormat('dd/MM/yyyy').format(att.attendanceDate)}'),
+                          Text('📌 Trạng thái: ${att.status}'),
+                        ],
                       ),
-                      trailing: Text('${att.totalHours}h',
-                          style: const TextStyle(color: Color(0xFFEF6C00), fontWeight: FontWeight.bold)),
+                      trailing: Text(
+                        '${att.totalHours}h',
+                        style: const TextStyle(
+                          color: Color(0xFFEF6C00),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
                       isThreeLine: true,
                     ),
                   );

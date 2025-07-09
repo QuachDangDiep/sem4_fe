@@ -223,7 +223,11 @@ class _LeaveRegistrationPageState extends State<LeaveRegistrationPage> {
     if (_fetchingEmployeeId) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('Đăng ký nghỉ phép'),
+          title: const Text('Đăng ký nghỉ phép',style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            color: Colors.white,
+          ),),
           backgroundColor: Colors.orange,
         ),
         body: const Center(child: CircularProgressIndicator()),

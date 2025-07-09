@@ -7,6 +7,7 @@ import 'package:sem4_fe/ui/User/Individual/Navbar/Attendance.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/WorkHistory.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/ChangePasswordPage.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/histotyqr.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/MyLeaveScreen.dart';
 import 'package:sem4_fe/ui/login/Login.dart';
 
 class PersonalPage extends StatelessWidget {
@@ -162,7 +163,31 @@ class PersonalPage extends StatelessWidget {
               );
             }
           }, backgroundColor: Colors.cyan),
-          buildMenuItem('Bảng phép, thâm niên', Icons.event_note, () {},
+          buildMenuItem('Bảng phép, thâm niên', Icons.event_note, () async {
+            try {
+              // Lấy token từ SharedPreferences
+              final prefs = await SharedPreferences.getInstance();
+              final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
+
+              if (token == null || token.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Vui lòng đăng nhập lại')),
+                );
+                return;
+              }
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => MyLeaveScreen(token: token),
+                ),
+              );
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+              );
+            }
+          },
               backgroundColor: Colors.lightBlue),
           buildMenuItem('Lịch sửa làm việc', Icons.description, () async {
             try {

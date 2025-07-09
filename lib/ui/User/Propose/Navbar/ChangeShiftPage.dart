@@ -121,7 +121,26 @@ class _ChangeShiftPageState extends State<ChangeShiftPage> {
       initialDate: DateTime.now(),
       firstDate: DateTime.now().subtract(const Duration(days: 7)),
       lastDate: DateTime.now().add(const Duration(days: 60)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Colors.orange, // Màu cam header và button
+              onPrimary: Colors.white, // Chữ trên header
+              onSurface: Colors.black, // Chữ chính
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.orange, // Màu của nút Cancel / OK
+              ),
+            ),
+            dialogBackgroundColor: Colors.white, // Nền trắng
+          ),
+          child: child!,
+        );
+      },
     );
+
     if (picked != null) {
       setState(() => selectedWorkDay = picked.toIso8601String().split('T')[0]);
     }
@@ -168,17 +187,50 @@ class _ChangeShiftPageState extends State<ChangeShiftPage> {
       showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text("✅ Đổi ca thành công"),
-          content: const Text("Bạn đã đổi ca thành công."),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(ctx).pop(); // đóng dialog
-                Navigator.of(context).pop(); // quay lại trang trước
-              },
-              child: const Text("OK"),
-            ),
-          ],
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle_outline, color: Colors.green, size: 48),
+              const SizedBox(height: 12),
+              const Text(
+                "Đổi ca thành công",
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                "Bạn đã đổi ca thành công.",
+                style: TextStyle(fontSize: 15, color: Colors.black54),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop(); // Đóng dialog
+                    Navigator.of(context).pop(); // Quay lại
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text("OK", style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     } else {
@@ -191,56 +243,171 @@ class _ChangeShiftPageState extends State<ChangeShiftPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Đổi ca làm")),
-      body: Padding(
+      appBar: AppBar(
+        title: const Text(
+          "Đổi ca làm",
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            color: Colors.white,
+          ),
+        ),
+        centerTitle: true, // ✅ Căn giữa tiêu đề
+        backgroundColor: Colors.orange, // ✅ Màu nền cam
+      ),
+      body: loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: loading
-            ? const Center(child: CircularProgressIndicator())
-            : Column(
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("Chọn ca muốn đổi:"),
-            DropdownButtonFormField<String>(
-              value: selectedScheduleId,
-              items: registeredSchedules.map((s) {
-                return DropdownMenuItem<String>(
-                  value: s['scheduleId'],
-                  child: Text('${s['scheduleInfoName'] ?? 'Không có tên'} - ${s['workDay']}'),
-                );
-              }).toList(),
-              onChanged: (val) {
-                if (val != null) onScheduleSelected(val);
-              },
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 16),
-            const Text("Chọn ca mới:"),
-            DropdownButtonFormField<String>(
-              value: selectedScheduleInfoId,
-              items: scheduleInfoOptions.map((item) {
-                return DropdownMenuItem<String>(
-                  value: item['scheduleInfoId'],
-                  child: Text(item['name'] ?? ''),
-                );
-              }).toList(),
-              onChanged: (val) => setState(() => selectedScheduleInfoId = val),
-              decoration: const InputDecoration(border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 16),
-            ListTile(
-              title: Text(selectedWorkDay ?? "Chọn ngày làm"),
-              trailing: const Icon(Icons.calendar_today),
-              onTap: pickDate,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: handleSubmit,
-              child: const Text("Xác nhận đổi ca"),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
-                minimumSize: const Size.fromHeight(50),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.only(bottom: 24),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "1. Ca hiện tại",
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedScheduleId,
+                  items: registeredSchedules.map((s) {
+                    return DropdownMenuItem<String>(
+                      value: s['scheduleId'],
+                      child: Text(
+                        '${s['scheduleInfoName'] ?? 'Không rõ'} - ${s['workDay']}',
+                        style: const TextStyle(fontSize: 15),
+                      ),
+                    );
+                  }).toList(),
+                  onChanged: (val) {
+                    if (val != null) onScheduleSelected(val);
+                  },
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.white,
+                    hintText: "Chọn ca hiện tại",
+                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    enabledBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.orange.shade400, width: 2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.orange),
+                  dropdownColor: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                ],
+                ),
               ),
-            )
+            ),
+            Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.only(bottom: 24),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      "2. Chọn ca mới",
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: selectedScheduleInfoId,
+                      items: scheduleInfoOptions.map((item) {
+                        return DropdownMenuItem<String>(
+                          value: item['scheduleInfoId'],
+                          child: Text(
+                            item['name'] ?? '',
+                            style: const TextStyle(fontSize: 15),
+                          ),
+                        );
+                      }).toList(),
+                      onChanged: (val) => setState(() => selectedScheduleInfoId = val),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: Colors.grey.shade100,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.grey.shade300, width: 1),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.orange.shade400, width: 2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    const Text(
+                      "3. Chọn ngày làm mới",
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 12),
+                    InkWell(
+                      onTap: pickDate,
+                      borderRadius: BorderRadius.circular(10),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade100,
+                          border: Border.all(color: Colors.grey.shade400),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            Text(
+                              selectedWorkDay ?? "Chọn ngày làm",
+                              style: TextStyle(
+                                fontSize: 15,
+                                color: selectedWorkDay == null ? Colors.grey : Colors.black87,
+                              ),
+                            ),
+                            const Spacer(),
+                            const Icon(Icons.calendar_today, color: Colors.orange),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: handleSubmit,
+                icon: const Icon(Icons.swap_horiz, size: 22),
+                label: const Text(
+                  "Xác nhận đổi ca",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 4,
+                ),
+              ),
+            ),
           ],
         ),
       ),

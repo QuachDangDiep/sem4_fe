@@ -65,7 +65,8 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         title: const Text('Quét mã QR chấm công'),
-        backgroundColor: Colors.blue[800],
+        backgroundColor: Colors.orange,
+        centerTitle: true,
         elevation: 0,
       ),
       body: Stack(
@@ -125,16 +126,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               ),
             ),
           ),
-          if (!_isProcessing)
-            Positioned(
-              bottom: 40,
-              right: 20,
-              child: FloatingActionButton(
-                onPressed: () => Navigator.pop(context),
-                backgroundColor: Colors.red,
-                child: const Icon(Icons.close),
-              ),
-            ),
         ],
       ),
     );
@@ -179,7 +170,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         }),
       );
 
-
       if (attendanceResponse.statusCode != 200) {
         throw Exception('Lỗi khi tạo bản ghi chấm công: ${attendanceResponse.body}');
       }
@@ -223,24 +213,6 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             }
           ],
         });
-
-      if (attendanceResponse.statusCode == 200) {
-        final shiftsResponse = await http.get(
-          Uri.parse('${Constants.baseUrl}/api/attendances/by-employee/$employeeId'),
-          headers: {'Authorization': 'Bearer $token'},
-        );
-
-        if (shiftsResponse.statusCode == 200) {
-          final shifts = json.decode(shiftsResponse.body);
-          Navigator.pop(context, {
-            'employeeId': employeeId,
-            'qrId': qrInfoId,
-            'shifts': shifts,
-          });
-        } else {
-          throw Exception('Lỗi khi lấy danh sách ca làm');
-        }
-
       } else {
         throw Exception('Không thể lấy dữ liệu ca làm mới');
       }
@@ -261,7 +233,7 @@ class _QRScannerOverlay extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()..color = Colors.black54;
     final borderPaint = Paint()
-      ..color = Colors.blue
+      ..color = Colors.white
       ..strokeWidth = 4
       ..style = PaintingStyle.stroke;
 
@@ -280,7 +252,7 @@ class _QRScannerOverlay extends CustomPainter {
 
     final cornerLength = 30.0;
     final cornerPaint = Paint()
-      ..color = Colors.green
+      ..color = Colors.white
       ..strokeWidth = 6
       ..style = PaintingStyle.stroke;
 

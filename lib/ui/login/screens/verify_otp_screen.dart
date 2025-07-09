@@ -14,11 +14,29 @@ class VerifyOtpScreen extends StatefulWidget {
 
 class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
   final List<TextEditingController> _controllers =
-  List.generate(6, (index) => TextEditingController());
-  final List<FocusNode> _focusNodes =
-  List.generate(6, (index) => FocusNode());
+  List.generate(6, (_) => TextEditingController());
+  final List<FocusNode> _focusNodes = List.generate(6, (_) => FocusNode());
 
   String get otpCode => _controllers.map((e) => e.text).join();
+
+  @override
+  void initState() {
+    super.initState();
+    for (var node in _focusNodes) {
+      node.addListener(() => setState(() {})); // Cập nhật khi focus thay đổi
+    }
+  }
+
+  @override
+  void dispose() {
+    for (var c in _controllers) {
+      c.dispose();
+    }
+    for (var f in _focusNodes) {
+      f.dispose();
+    }
+    super.dispose();
+  }
 
   Future<void> _verifyOtp() async {
     final otp = otpCode;
@@ -64,9 +82,20 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
         style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
         decoration: InputDecoration(
           counterText: '',
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           filled: true,
           fillColor: Colors.white,
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: const BorderSide(color: Colors.orange, width: 2),
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(10),
+            borderSide: BorderSide(
+              color: _focusNodes[index].hasFocus
+                  ? Colors.orange
+                  : Colors.grey.shade300,
+            ),
+          ),
         ),
         onChanged: (value) {
           if (value.length > 1) {
@@ -95,17 +124,6 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
   }
 
   @override
-  void dispose() {
-    for (var c in _controllers) {
-      c.dispose();
-    }
-    for (var f in _focusNodes) {
-      f.dispose();
-    }
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final padding = screenWidth * 0.08;
@@ -125,108 +143,174 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
       ),
       child: Scaffold(
         backgroundColor: Colors.transparent,
-        body: Center(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.symmetric(horizontal: padding),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Logo bên ngoài, màu trắng, chiều cao 70 như SendOtpScreen
-                ColorFiltered(
-                  colorFilter: const ColorFilter.mode(
-                    Colors.white,
-                    BlendMode.srcIn,
-                  ),
-                  child: Image.network(
-                    'https://app.easyhrm.vn/image/easyhrmlogo.png',
-                    height: 70,
-                    fit: BoxFit.contain,
-                    errorBuilder: (context, error, stackTrace) =>
-                    const Icon(Icons.error, size: 48),
+        body: Stack(
+          children: [
+            Align(
+              alignment: Alignment.bottomLeft,
+              child: Transform.translate(
+                offset: const Offset(-130, 80),
+                child: Transform.rotate(
+                  angle: -0.2,
+                  child: ClipPath(
+                    clipper: _OtpBottomClipper(),
+                    child: Container(
+                      width: 420,
+                      height: 420,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
-
-                const SizedBox(height: 24),
-
-                Container(
-                  constraints: const BoxConstraints(minHeight: 500),
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.95),
-                    border:
-                    Border.all(color: Colors.grey.shade300, width: 1.2),
-                    borderRadius: BorderRadius.circular(16),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.grey.withOpacity(0.1),
-                        blurRadius: 12,
-                        offset: const Offset(0, 6),
+              ),
+            ),
+            Center(
+              child: SingleChildScrollView(
+                padding: EdgeInsets.symmetric(horizontal: padding),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    ColorFiltered(
+                      colorFilter: const ColorFilter.mode(
+                        Colors.white,
+                        BlendMode.srcIn,
                       ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Row chứa nút back và tiêu đề
-                      Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.arrow_back,
-                              color: Colors.orange,
+                      child: Image.network(
+                        'https://app.easyhrm.vn/image/easyhrmlogo.png',
+                        height: 70,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) =>
+                        const Icon(Icons.broken_image,
+                            size: 70, color: Colors.white),
+                      ),
+                    ),
+                    const SizedBox(height: 35),
+                    Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            width: MediaQuery.of(context).size.width * 0.88,
+                            constraints: const BoxConstraints(
+                              maxWidth: 460,
+                              minHeight: 400,
                             ),
-                            onPressed: () => Navigator.pop(context),
-                          ),
-                          const SizedBox(width: 4),
-                          const Text(
-                            'Xác thực mã OTP',
-                            style: TextStyle(
-                                fontSize: 20, fontWeight: FontWeight.bold),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: 32),
-
-                      // Dãy ô nhập OTP
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                        children: List.generate(6, _buildOtpField),
-                      ),
-
-                      const SizedBox(height: 40),
-
-                      // Nút xác minh
-                      SizedBox(
-                        width: double.infinity,
-                        height: 50,
-                        child: ElevatedButton.icon(
-                          onPressed: _verifyOtp,
-                          icon: const Icon(Icons.check_circle_outline),
-                          label: const Text(
-                            'Xác minh mã',
-                            style: TextStyle(
-                              fontSize: 16,
+                            padding: const EdgeInsets.all(24),
+                            margin: const EdgeInsets.only(bottom: 70),
+                            decoration: BoxDecoration(
                               color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: const Color(0xFFFF9800), width: 2),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.15),
+                                  spreadRadius: 4,
+                                  blurRadius: 12,
+                                ),
+                              ],
                             ),
-                          ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.orange,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.arrow_back,
+                                          color: Colors.orange),
+                                      onPressed: () => Navigator.pop(context),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      'Xác thực mã OTP',
+                                      style: TextStyle(
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 24),
+                                const Text(
+                                  'Nhập mã OTP gồm 6 chữ số được gửi tới email:',
+                                  style: TextStyle(color: Colors.orange),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  widget.email,
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF2424E6)),
+                                ),
+                                const SizedBox(height: 30),
+                                Row(
+                                  mainAxisAlignment:
+                                  MainAxisAlignment.spaceEvenly,
+                                  children:
+                                  List.generate(6, _buildOtpField),
+                                ),
+                                const SizedBox(height: 30),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 50,
+                                  child: ElevatedButton(
+                                    onPressed: _verifyOtp,
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor:
+                                      const Color(0xFFFF9800),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                        BorderRadius.circular(12),
+                                      ),
+                                    ),
+                                    child: const Text(
+                                      'Xác minh',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
+                        Positioned(
+                          bottom: -20,
+                          left: 0,
+                          right: 0,
+                          child: Image.asset(
+                            'assets/hr.png',
+                            height: 200,
+                            fit: BoxFit.contain,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
   }
+}
+
+class _OtpBottomClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.moveTo(0, 0);
+    path.lineTo(size.width, 0);
+    path.lineTo(size.width, size.height);
+    path.lineTo(0, size.height);
+    path.lineTo(0, size.height * 0.6);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

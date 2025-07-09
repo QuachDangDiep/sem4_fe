@@ -1,8 +1,11 @@
 class Constants {
-  static const String baseUrl = 'http://192.168.1.16:8080';
+  static const String baseUrl = 'http://10.0.2.2:8080';
 
   static const String loginUrl = '$baseUrl/api/auth/login';
   static const String homeUrl = '$baseUrl/api/users';
+
+  static String myLeavesByEmployeeIdUrl(String employeeId) =>
+      "$baseUrl/api/leaves/my-leaves/$employeeId";
 
   static const String sendotpUrl = '$baseUrl/api/password-reset/send-otp';
   static String verifyotpUrl(String email) => '$baseUrl/api/password-reset/verify-otp/$email';

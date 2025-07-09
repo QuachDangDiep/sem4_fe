@@ -1,3 +1,4 @@
+
 import 'dart:convert';
 import 'dart:io';
 
@@ -74,7 +75,21 @@ class _AttendanceAppealPageState extends State<AttendanceAppealPage> {
       initialDate: selectedDate ?? DateTime.now(),
       firstDate: DateTime(2024, 1),
       lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Colors.orange, // Màu cam cho header
+              onPrimary: Colors.white, // Chữ trắng trên header
+              onSurface: Colors.black, // Chữ chính trong dialog
+            ),
+            dialogBackgroundColor: Colors.white, // Nền trắng
+          ),
+          child: child!,
+        );
+      },
     );
+
     if (picked != null) {
       setState(() {
         selectedDate = picked;
@@ -141,48 +156,92 @@ class _AttendanceAppealPageState extends State<AttendanceAppealPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Giải trình chấm công'),
-        backgroundColor: Colors.blueAccent,
+        title: const Text('Giải trình chấm công',style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+          color: Colors.white,
+        ),),
+        backgroundColor: Colors.orange,
+        centerTitle: true,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Chọn ngày muốn giải trình:', style: TextStyle(fontSize: 16)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    selectedDate != null
-                        ? 'Ngày đã chọn: ${DateFormat('dd/MM/yyyy').format(selectedDate!)}'
-                        : 'Chưa chọn ngày',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                ),
-                ElevatedButton(
-                  onPressed: () => _selectDate(context),
-                  child: const Text('Chọn ngày'),
-                ),
-              ],
+            const Text(
+              '📅 Chọn ngày muốn giải trình:',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.grey.shade100,
+                border: Border.all(color: Colors.orange),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      selectedDate != null
+                          ? '🗓️ Ngày đã chọn: ${DateFormat('dd/MM/yyyy').format(selectedDate!)}'
+                          : '⚠️ Chưa chọn ngày',
+                      style: const TextStyle(fontSize: 16),
+                    ),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () => _selectDate(context),
+                    icon: const Icon(Icons.date_range),
+                    label: const Text('Chọn ngày'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              '📝 Lý do giải trình:',
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
             TextField(
               controller: reasonController,
-              decoration: const InputDecoration(
-                labelText: 'Lý do giải trình',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                hintText: 'Nhập lý do...',
+                filled: true,
+                fillColor: Colors.grey.shade100,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Colors.orange),
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
-              maxLines: 3,
+              maxLines: 4,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
             Row(
               children: [
                 ElevatedButton.icon(
                   onPressed: pickImage,
-                  icon: const Icon(Icons.image),
+                  icon: const Icon(Icons.image_outlined),
                   label: const Text('Thêm hình ảnh'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange.shade400,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 if (selectedImage != null)
@@ -192,9 +251,18 @@ class _AttendanceAppealPageState extends State<AttendanceAppealPage> {
             const Spacer(),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 onPressed: submitAppeal,
-                child: const Text('Gửi giải trình'),
+                icon: const Icon(Icons.send),
+                label: const Text('Gửi giải trình'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 3,
+                ),
               ),
             ),
           ],

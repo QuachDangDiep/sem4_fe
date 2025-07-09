@@ -17,6 +17,8 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   Map<String, List<Map<String, dynamic>>> attendanceByDate = {}; // yyyy-MM-dd: list of records
   String? employeeId;
   String? _errorMessage;
+  int selectedMonth = DateTime.now().month;
+
 
   @override
   void initState() {
@@ -140,8 +142,14 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
       '${DateFormat('dd/MM/yyyy').format(date)}\nSớm: ${earlyStatus ?? "Không có"}\nMuộn: ${lateStatus ?? "Không có"}',
       child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(6),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 1,
+              blurRadius: 3,
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -151,8 +159,8 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                 decoration: BoxDecoration(
                   color: getStatusColor(earlyStatus),
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(4),
-                    topRight: Radius.circular(4),
+                    topLeft: Radius.circular(6),
+                    topRight: Radius.circular(6),
                   ),
                 ),
               ),
@@ -163,8 +171,8 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
                 decoration: BoxDecoration(
                   color: getStatusColor(lateStatus),
                   borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(4),
-                    bottomRight: Radius.circular(4),
+                    bottomLeft: Radius.circular(6),
+                    bottomRight: Radius.circular(6),
                   ),
                 ),
               ),
@@ -244,13 +252,14 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   }
 
   Widget _legendBox(String label, Color color) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(width: 14, height: 14, color: color),
-        const SizedBox(width: 6),
-        Text(label, style: const TextStyle(fontSize: 13)),
-      ],
+    return Chip(
+      avatar: CircleAvatar(
+        backgroundColor: color,
+        radius: 6,
+      ),
+      label: Text(label, style: const TextStyle(fontSize: 13)),
+      backgroundColor: Colors.grey.shade100,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
     );
   }
 
@@ -260,23 +269,64 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Lịch sử chấm công $currentYear'),
+        title: Text('Lịch sử chấm công $currentYear',style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+          color: Colors.white,
+        ),),
         backgroundColor: Colors.orange,
+        centerTitle: true,
       ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Bộ chọn tháng
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Chọn tháng:',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.orange),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: selectedMonth,
+                      icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
+                      items: List.generate(12, (index) {
+                        int month = index + 1;
+                        return DropdownMenuItem<int>(
+                          value: month,
+                          child: Text('Tháng $month'),
+                        );
+                      }),
+                      onChanged: (value) {
+                        if (value != null) {
+                          setState(() => selectedMonth = value);
+                        }
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Chú thích màu
             _buildLegend(),
             const SizedBox(height: 12),
+
+            // Lịch hiển thị của tháng đã chọn
             Expanded(
               child: SingleChildScrollView(
-                child: Column(
-                  children: List.generate(12, (monthIndex) {
-                    final month = monthIndex + 1;
-                    return buildCalendarMonth(currentYear, month);
-                  }),
-                ),
+                child: buildCalendarMonth(DateTime.now().year, selectedMonth),
               ),
             ),
           ],
