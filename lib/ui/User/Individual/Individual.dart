@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/Information.dart';
-import 'package:sem4_fe/ui/User/Individual/Navbar/Timesheet.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/Attendance.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/WorkHistory.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/ChangePasswordPage.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/histotyqr.dart';

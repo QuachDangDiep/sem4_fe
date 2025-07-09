@@ -28,7 +28,6 @@ dependencies:
   google_sign_in: ^6.1.0
   flutter_facebook_auth: ^7.1.1
 
-  syncfusion_flutter_xlsio: ^22.1.42
   path_provider: ^2.0.15
   flutter_local_notifications: ^15.1.1
   firebase_core: ^2.32.0
@@ -39,6 +38,10 @@ dependencies:
   printing: ^5.11.0
   permission_handler: ^11.0.1
   googleapis: ^12.0.0
+  image_picker: ^1.0.7
+  syncfusion_flutter_core: ^24.2.9
+  syncfusion_flutter_charts: ^24.2.9
+  syncfusion_flutter_xlsio: ^24.2.9
 
 
 

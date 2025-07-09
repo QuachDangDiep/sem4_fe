@@ -13,8 +13,8 @@ class Constants {
   static const String qrScanUrl = '$baseUrl/api/qrattendance';
   static const String activeQrAttendanceUrl = '$baseUrl/api/qrattendance/active';
 
-  static String qrAttendancesByEmployeeUrl(String employeeId) =>
-      '$baseUrl/api/qrattendance/with-employees/$employeeId';
+  // static String qrAttendancesByEmployeeUrl(String employeeId) =>
+  //     '$baseUrl/api/qrattendance/with-employees/$employeeId';
 
   static const String workScheduleUrl = '$baseUrl/api/work-schedules/filter';
   static String workScheduleFilterRangeUrl({
@@ -42,4 +42,36 @@ class Constants {
   static const String registerWorkScheduleUrl = '$baseUrl/api/work-schedules';
   static String updateWorkScheduleUrl(String scheduleId) =>
       '$baseUrl/api/work-schedules/$scheduleId';
+
+  static const String attendanceAppealsUrl = '$baseUrl/api/attendance-appeals';
+
+  static String attendanceAppealsByEmployeeUrl(String employeeId) =>
+      '$baseUrl/api/attendance-appeals?employeeId=$employeeId';
+
+  static String postAttendanceAppealUrl = '$baseUrl/api/attendance-appeals';
+
+
+  static String qrAttendancesByEmployeeUrl(String employeeId) =>
+      '$baseUrl/api/qrattendance/by-employee?employeeId=$employeeId';
+
+  static String attendancesByEmployeeUrl(String employeeId) =>
+      '$baseUrl/api/attendances/by-employee?employeeId=$employeeId';
+
+  static String filterAttendancesUrlWithStatus({
+    required String employeeId,
+    required String fromDate,
+    required String toDate,
+    String? status,
+  }) {
+    String url =
+        '$baseUrl/api/attendances/filter-range?employeeId=$employeeId&fromDate=$fromDate&toDate=$toDate';
+
+    if (status != null && status.isNotEmpty) {
+      url += '&status=$status';
+    }
+
+    return url;
+  }
+
+
 }
