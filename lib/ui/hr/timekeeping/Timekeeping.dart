@@ -1,63 +1,38 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:sem4_fe/ui/hr/Staff/staff.dart';
-import 'package:sem4_fe/ui/hr/Setting/Setting.dart';
-import 'package:sem4_fe/ui/hr/home/HomeHr.dart';
+import 'package:sem4_fe/Service/Constants.dart';
+import 'package:sem4_fe/ui/Hr/Timekeeping/Navbar/Workschedulecreate.dart';
 
-class QRAttendanceModel {
-  final String qrId;
-  final String employeeName;
-  final String employeeId;
-  final String status;
-  final String attendanceMethod;
-  final String faceRecognitionImage;
-
-  QRAttendanceModel({
-    required this.qrId,
-    required this.employeeName,
-    required this.employeeId,
-    required this.status,
-    required this.attendanceMethod,
-    required this.faceRecognitionImage,
-  });
-
-  factory QRAttendanceModel.fromJson(Map<String, dynamic> json) {
-    return QRAttendanceModel(
-      qrId: json['qrId'],
-      employeeName: json['employee']?['fullName'] ?? '',
-      employeeId: json['employee']?['employeeCode'] ?? '',
-      status: json['status'] ?? '',
-      attendanceMethod: json['attendanceMethod'] ?? '',
-      faceRecognitionImage: json['faceRecognitionImage'] ?? '',
-    );
-  }
-}
-
-class TimekeepingScreen extends StatefulWidget {
-  final String username;
+class WorkScheduleInfoListScreen extends StatefulWidget {
   final String token;
+  final WorkScheduleInfo? existingSchedule;
+  final String username;
 
-  const TimekeepingScreen({Key? key, required this.username, required this.token})
-      : super(key: key);
+  const WorkScheduleInfoListScreen({
+    Key? key,
+    required this.token,
+    this.existingSchedule,
+    required this.username, // 👈 Thêm dòng này
+  }) : super(key: key);
 
   @override
-  State<TimekeepingScreen> createState() => _TimekeepingScreenState();
+  State<WorkScheduleInfoListScreen> createState() => _WorkScheduleInfoListScreenState();
 }
 
-class _TimekeepingScreenState extends State<TimekeepingScreen> {
-  late Future<List<QRAttendanceModel>> futureAttendances;
-  int _selectedIndex = 2;
+class _WorkScheduleInfoListScreenState extends State<WorkScheduleInfoListScreen> {
+  late Future<List<WorkScheduleInfo>> _futureList;
 
   @override
   void initState() {
     super.initState();
-    futureAttendances = fetchAttendanceList();
+    _futureList = fetchWorkScheduleInfos();
   }
 
-  Future<List<QRAttendanceModel>> fetchAttendanceList() async {
+  Future<List<WorkScheduleInfo>> fetchWorkScheduleInfos() async {
+    final url = Uri.parse(Constants.workScheduleInfoUrl);
     final response = await http.get(
-      Uri.parse('http://10.0.2.2:8080/api/qrattendance/today'),
+      url,
       headers: {
         'Authorization': 'Bearer ${widget.token}',
         'Content-Type': 'application/json',
@@ -65,116 +40,231 @@ class _TimekeepingScreenState extends State<TimekeepingScreen> {
     );
 
     if (response.statusCode == 200) {
-      List jsonData = json.decode(response.body);
-      return jsonData.map((item) => QRAttendanceModel.fromJson(item)).toList();
+      final body = jsonDecode(response.body);
+      final List<dynamic> data = body['result'];
+      return data.map((item) => WorkScheduleInfo.fromJson(item)).toList();
     } else {
-      throw Exception('Lỗi khi tải dữ liệu chấm công');
+      throw Exception('Failed to load data: ${response.body}');
     }
   }
 
-  void _onItemTapped(int index) {
-    if (index == _selectedIndex) return;
+  Future<void> _deleteSchedule(String scheduleInfoId) async {
+    try {
+      final response = await http.delete(
+        Uri.parse("${Constants.workScheduleInfoUrl}/$scheduleInfoId"),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
 
-    Widget nextPage;
-    switch (index) {
-      case 0:
-        nextPage = HomeHRPage(username: widget.username, token: widget.token);
-        break;
-      case 1:
-        nextPage = StaffScreen(username: widget.username, token: widget.token);
-        break;
-      case 2:
-        nextPage = TimekeepingScreen(username: widget.username, token: widget.token);
-        break;
-      case 3:
+      if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chức năng Báo cáo đang được phát triển')),
+          const SnackBar(content: Text("✅ Xóa ca làm thành công")),
         );
-        return;
-      case 4:
-        nextPage = HrSettingsPage(username: widget.username, token: widget.token);
-        break;
-      default:
-        return;
+        setState(() => _futureList = fetchWorkScheduleInfos());
+      } else {
+        throw Exception("Không thể xóa: ${response.body}");
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("❌ Lỗi khi xóa: $e")),
+      );
     }
-
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (_) => nextPage),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chấm công hôm nay'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 1,
+        backgroundColor: Colors.orange,
+        centerTitle: true, // đảm bảo căn giữa tiêu đề
+        title: const Text(
+          'Quản lý ca làm',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => WorkScheduleInfoCreateScreen(
+                      token: widget.token,
+                    ),
+                  ),
+                );
+                if (result == true) {
+                  setState(() => _futureList = fetchWorkScheduleInfos()); // ✅ Đúng
+                }
+              }
+          ),
+          const SizedBox(width: 12),
+        ],
       ),
-      body: FutureBuilder<List<QRAttendanceModel>>(
-        future: futureAttendances,
+      body: FutureBuilder<List<WorkScheduleInfo>>(
+        future: _futureList,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
-          } else if (snapshot.hasError) {
-            return Center(child: Text('Lỗi: \${snapshot.error}'));
-          } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(child: Text('Không có dữ liệu chấm công'));
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('Lỗi: ${snapshot.error}'));
           }
 
-          final employees = snapshot.data!;
+          final schedules = snapshot.data!;
+          if (schedules.isEmpty) {
+            return const Center(child: Text('Không có dữ liệu'));
+          }
+
           return ListView.builder(
-            itemCount: employees.length,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            itemCount: schedules.length,
             itemBuilder: (context, index) {
-              final emp = employees[index];
+              final s = schedules[index];
+              final isActive = s.status == 'Active';
+
               return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundImage: emp.faceRecognitionImage.isNotEmpty
-                        ? MemoryImage(base64Decode(emp.faceRecognitionImage))
-                        : const AssetImage('assets/default_avatar.png') as ImageProvider,
-                    radius: 24,
-                  ),
-                  title: Text(emp.employeeName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                  subtitle: Column(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                elevation: 6,
+                shadowColor: Colors.orange.withOpacity(0.3),
+                margin: const EdgeInsets.only(bottom: 14),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Mã NV: \${emp.employeeId}'),
-                      Text('Hình thức: \${emp.attendanceMethod}'),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 28,
+                            backgroundColor: Colors.orange.shade50,
+                            child: const Icon(Icons.schedule, color: Colors.deepOrange, size: 28),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  s.name,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.login, size: 16, color: Colors.orange),
+                                    const SizedBox(width: 6),
+                                    Text('Giờ vào: ${s.defaultStartTime}',
+                                        style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.logout, size: 16, color: Colors.orange),
+                                    const SizedBox(width: 6),
+                                    Text('Giờ tan: ${s.defaultEndTime}',
+                                        style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.description, size: 16, color: Colors.grey),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        s.description,
+                                        style: const TextStyle(fontSize: 13, color: Colors.black54),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: isActive ? Colors.green.shade100 : Colors.red.shade100,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      isActive ? 'Đang hoạt động' : 'Ngưng hoạt động',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: isActive ? Colors.green.shade800 : Colors.red.shade800,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.blue),
+                            onPressed: () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => WorkScheduleInfoCreateScreen(
+                                    token: widget.token,
+                                    existingSchedule: s,
+                                  ),
+                                ),
+                              );
+                              if (result == true) {
+                                setState(() => _futureList = fetchWorkScheduleInfos());
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () async {
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (context) => AlertDialog(
+                                  title: const Text("Xác nhận xóa"),
+                                  content: Text("Bạn có chắc muốn xóa ca làm '${s.name}' không?"),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text("Hủy")),
+                                    TextButton(onPressed: () => Navigator.pop(context, true), child: const Text("Xóa")),
+                                  ],
+                                ),
+                              );
+
+                              if (confirm == true) {
+                                await _deleteSchedule(s.scheduleInfoId);
+                              }
+                            },
+                          ),
+                        ],
+                      ),
                     ],
-                  ),
-                  trailing: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: emp.status == 'Present' || emp.status == 'CheckIn'
-                          ? Colors.green.shade100
-                          : Colors.orange.shade100,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(emp.status, style: const TextStyle(fontSize: 12, color: Colors.black)),
                   ),
                 ),
               );
             },
           );
         },
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        selectedItemColor: Colors.deepPurple,
-        unselectedItemColor: Colors.grey,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard_outlined), label: 'Tổng quan'),
-          BottomNavigationBarItem(icon: Icon(Icons.people_outline), label: 'Nhân viên'),
-          BottomNavigationBarItem(icon: Icon(Icons.fingerprint), label: 'Chấm công'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart_outlined), label: 'Báo cáo'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined), label: 'Cài đặt'),
-        ],
       ),
     );
   }

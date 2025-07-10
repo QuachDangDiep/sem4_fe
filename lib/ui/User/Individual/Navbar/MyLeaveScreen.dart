@@ -104,13 +104,26 @@ class _MyLeaveScreenState extends State<MyLeaveScreen> {
   Color _getStatusColor(String status) {
     switch (status) {
       case 'Approved':
-        return Colors.green.shade100;
+        return Colors.green.shade600;
       case 'Pending':
-        return Colors.orange.shade100;
+        return Colors.orange.shade700;
       case 'Rejected':
-        return Colors.red.shade100;
+        return Colors.red.shade600;
       default:
-        return Colors.grey.shade200;
+        return Colors.grey.shade600;
+    }
+  }
+
+  String _getStatusLabelText(String status) {
+    switch (status) {
+      case 'Approved':
+        return 'Đã duyệt';
+      case 'Pending':
+        return 'Đang chờ duyệt';
+      case 'Rejected':
+        return 'Từ chối';
+      default:
+        return status;
     }
   }
 
@@ -155,7 +168,9 @@ class _MyLeaveScreenState extends State<MyLeaveScreen> {
               contentPadding: const EdgeInsets.all(16),
               leading: Icon(
                 _getStatusIcon(leave.status),
-                color: Colors.deepOrange,
+                color: leave.status == 'Approved'
+                    ? Colors.green.shade700 // hoặc Colors.greenAccent nếu muốn sáng hơn
+                    : _getStatusColor(leave.status),
                 size: 32,
               ),
               title: Text(
@@ -177,7 +192,36 @@ class _MyLeaveScreenState extends State<MyLeaveScreen> {
                     const SizedBox(height: 4),
                     Text('👤 Mã nhân viên: ${leave.employeeId}'),
                     const SizedBox(height: 4),
-                    Text('🟢 Trạng thái: ${_getStatusText(leave.status)}'),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _getStatusColor(leave.status).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: RichText(
+                        text: TextSpan(
+                          children: [
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: Icon(
+                                _getStatusIcon(leave.status),
+                                size: 16,
+                                color: _getStatusColor(leave.status),
+                              ),
+                            ),
+                            const WidgetSpan(child: SizedBox(width: 6)),
+                            TextSpan(
+                              text: _getStatusLabelText(leave.status), // chỉ chữ thôi
+                              style: TextStyle(
+                                color: _getStatusColor(leave.status),
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

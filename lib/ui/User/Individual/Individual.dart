@@ -226,22 +226,19 @@ class PersonalPage extends StatelessWidget {
                 );
                 return;
               }
-
               // Giải mã token để lấy userId
               final decodedToken = JwtDecoder.decode(token);
               final userId = decodedToken['userId'] ?? decodedToken['sub'];
-
               if (userId == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Không tìm thấy userId trong token')),
                 );
                 return;
               }
-
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ChangePasswordPage(userId: userId.toString(), token: '',),
+                  builder: (context) => ChangePasswordPage(token: token),
                 ),
               );
             } catch (e) {

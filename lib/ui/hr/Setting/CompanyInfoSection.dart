@@ -1,99 +1,132 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:sem4_fe/Service/Constants.dart';
 
 class CompanyInfoSection extends StatefulWidget {
+  final String username;
+  final String token;
+
+  const CompanyInfoSection({super.key, required this.username, required this.token});
+
   @override
-  _CompanyInfoSectionState createState() => _CompanyInfoSectionState();
+  State<CompanyInfoSection> createState() => _CompanyInfoSectionState();
 }
 
 class _CompanyInfoSectionState extends State<CompanyInfoSection> {
-  final _nameController = TextEditingController(
-      text: 'Công ty TNHH Quản lý Nhân sự Việt Nam');
-  final _addressController = TextEditingController(
-      text:
-      'Tầng 15, Tòa nhà Viettel, 285 Cách Mạng Tháng 8,\nPhường 12, Quận 10, TP. Hồ Chí Minh');
-  final _phoneController = TextEditingController(text: '028 3822 1155');
-  final _emailController =
-  TextEditingController(text: 'contact@hrmanagement.vn');
+  Map<String, dynamic>? location;
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    int maxLines = 1,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: TextField(
-        controller: controller,
-        maxLines: maxLines,
-        keyboardType: keyboardType,
-        decoration: InputDecoration(
-          labelText: label,
-          border: OutlineInputBorder(),
+  @override
+  void initState() {
+    super.initState();
+    fetchLocationInfo();
+  }
+
+  Future<void> fetchLocationInfo() async {
+    try {
+      final response = await http.get(
+        Uri.parse(Constants.locationUrl),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> locations = jsonDecode(response.body);
+        if (locations.isNotEmpty) {
+          setState(() {
+            location = locations.first;
+          });
+        }
+      } else {
+        print("Failed to load location: ${response.statusCode}");
+      }
+    } catch (e) {
+      print("Error fetching location info: $e");
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Thông tin công ty',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+        backgroundColor: Colors.orange,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.white),
+      ),
+      body: location == null
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            Center(
+              child: Column(
+                children: [
+                  Image.asset('assets/hr.png', height: 80),
+                  const SizedBox(height: 16),
+                  Text(
+                    location!['name'] ?? 'Tên công ty',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  const Divider(thickness: 1.2),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            _buildInfoCard(Icons.location_on, 'Địa chỉ', location!['address']),
+            _buildInfoCard(Icons.language, 'Latitude', location!['latitude']),
+            _buildInfoCard(Icons.language, 'Longitude', location!['longitude']),
+            _buildInfoCard(Icons.check_circle, 'Trạng thái hoạt động',
+                location!['active'] == true ? 'Đang hoạt động' : 'Không hoạt động'),
+            _buildInfoCard(Icons.gps_fixed, 'Địa điểm cố định',
+                location!['isFixedLocation'] == true ? 'Có' : 'Không'),
+            if (location!['status'] != null)
+              _buildInfoCard(Icons.verified, 'Trạng thái', location!['status']),
+            if (location!['createdBy'] != null)
+              _buildInfoCard(Icons.person, 'Người tạo', location!['createdBy']),
+            const SizedBox(height: 24),
+          ],
         ),
       ),
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      child: SingleChildScrollView(
-        // Cho phép cuộn nếu nội dung vượt chiều cao container
-        scrollDirection: Axis.vertical,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Logo
-              Center(
-                child: Column(
-                  children: [
-                    Image.asset(
-                      'assets/hr.png',
-                      height: 80,
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
+  Widget _buildInfoCard(IconData icon, String title, dynamic value) {
+    if (value == null) return const SizedBox.shrink(); // Không hiển thị nếu null
+
+    return Card(
+      margin: const EdgeInsets.symmetric(vertical: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 3,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: Colors.orange, size: 28),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold, color: Colors.black87)),
+                  const SizedBox(height: 4),
+                  Text(value.toString(),
+                      style: const TextStyle(fontSize: 15, color: Colors.black54),
+                      textAlign: TextAlign.justify),
+                ],
               ),
-              const SizedBox(height: 16),
-
-              // Các trường nhập liệu
-              _buildTextField(controller: _nameController, label: 'Tên công ty'),
-              _buildTextField(
-                  controller: _addressController, label: 'Địa chỉ', maxLines: 3),
-              _buildTextField(
-                  controller: _phoneController,
-                  label: 'Số điện thoại',
-                  keyboardType: TextInputType.phone),
-              _buildTextField(
-                  controller: _emailController,
-                  label: 'Email liên hệ',
-                  keyboardType: TextInputType.emailAddress),
-
-              const SizedBox(height: 20),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.deepPurple,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                ),
-                onPressed: () {
-                  final name = _nameController.text;
-                  final address = _addressController.text;
-                  final phone = _phoneController.text;
-                  final email = _emailController.text;
-
-                  print('Lưu thành công: $name, $address, $phone, $email');
-                },
-                child: const Text(
-                  'Lưu thay đổi',
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

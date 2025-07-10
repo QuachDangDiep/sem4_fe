@@ -275,16 +275,16 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                             ),
                           ),
                         ),
-                        Positioned(
-                          bottom: -20,
-                          left: 0,
-                          right: 0,
-                          child: Image.asset(
-                            'assets/hr.png',
-                            height: 200,
-                            fit: BoxFit.contain,
-                          ),
-                        ),
+                        // Positioned(
+                        //   bottom: -20,
+                        //   left: 0,
+                        //   right: 0,
+                        //   child: Image.asset(
+                        //     'assets/hr.png',
+                        //     height: 200,
+                        //     fit: BoxFit.contain,
+                        //   ),
+                        // ),
                       ],
                     ),
                   ],

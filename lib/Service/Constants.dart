@@ -3,7 +3,16 @@ class Constants {
 
   static const String loginUrl = '$baseUrl/api/auth/login';
   static const String homeUrl = '$baseUrl/api/users';
+  static const String rolesUrl = '$baseUrl/api/roles';
 
+  static String leaveDetailUrl(String id) => '$baseUrl/api/leaves/$id';
+
+  static const String locationUrl = "$baseUrl/api/locations";
+  static String changePasswordUrl(String userId) => "$baseUrl/api/users/$userId/change-password";
+
+  static const String workScheduleInfoUrl = "$baseUrl/api/work-schedule-infos";
+  static const String departmentsUrl = "$baseUrl/api/departments";
+  static const String positionsUrl = "$baseUrl/api/positions";
   static String myLeavesByEmployeeIdUrl(String employeeId) =>
       "$baseUrl/api/leaves/my-leaves/$employeeId";
 

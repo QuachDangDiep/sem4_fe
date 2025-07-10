@@ -1,13 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:sem4_fe/Service/Constants.dart';
-import 'package:sem4_fe/ui/hr/Setting/Setting.dart';
-import 'package:sem4_fe/ui/hr/Staff/staff.dart';
-//import 'package:sem4_fe/ui/hr/timekeeping/Timekeeping.dart';
+import 'package:sem4_fe/ui/Hr/Setting/Setting.dart';
+import 'package:sem4_fe/ui/Hr/Staff/staff.dart';
+import 'package:sem4_fe/ui/Hr/Timekeeping/Timekeeping.dart';
+import 'package:sem4_fe/Service/Constants.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sem4_fe/ui/Hr/Leaverquest/Leaverequestpase.dart';
 
 class QRAttendanceModel {
   final String qrId;
@@ -30,14 +33,14 @@ class QRAttendanceModel {
 
   factory QRAttendanceModel.fromJson(Map<String, dynamic> json) {
     return QRAttendanceModel(
-      qrId: json['qrId'] ?? '',
-      employeeName: json['employee']?['fullName'] ?? '',
-      employeeId: json['employee']?['employeeCode'] ?? '',
-      status: json['status'] ?? '',
-      attendanceMethod: json['attendanceMethod'] ?? '',
-      faceRecognitionImage: json['faceRecognitionImage'] ?? '',
+      qrId: json['qrId']?.toString() ?? '',
+      employeeName: json['employee']?['fullName']?.toString() ?? 'Unknown',
+      employeeId: json['employee']?['employeeCode']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
+      attendanceMethod: json['attendanceMethod']?.toString() ?? '',
+      faceRecognitionImage: json['faceRecognitionImage']?.toString() ?? '',
       timestamp: json['timestamp'] != null
-          ? DateTime.parse(json['timestamp'])
+          ? DateTime.tryParse(json['timestamp'].toString())
           : null,
     );
   }
@@ -60,11 +63,11 @@ class UserResponse {
 
   factory UserResponse.fromJson(Map<String, dynamic> json) {
     return UserResponse(
-      userId: json['userId'] ?? '',
-      username: json['username'] ?? '',
-      email: json['email'] ?? '',
-      role: json['role'] ?? '',
-      status: json['status'] ?? '',
+      userId: json['userId']?.toString() ?? '',
+      username: json['username']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      role: json['role']?.toString() ?? '',
+      status: json['status']?.toString() ?? '',
     );
   }
 }
@@ -89,36 +92,40 @@ class _HomeHRPageState extends State<HomeHRPage> {
   ];
   String? employeeId;
   bool isLoading = true;
+  Timer? _checkInTimer;
+  String? _lastCheckInKey;
 
   @override
   void initState() {
     super.initState();
+    print('Initializing HomeHRPage with username: ${widget.username}, token: ${widget.token}');
     _initializeData();
+    _startCheckInPolling();
   }
 
   Future<void> _initializeData() async {
     try {
-      // Retry loading employeeId up to 3 times
+      print('Starting initialization');
       for (int attempt = 1; attempt <= 3; attempt++) {
+        print('Attempt $attempt to load employeeId');
         await _loadEmployeeId();
         if (employeeId != null) break;
-        print('Retry attempt $attempt for employeeId');
-        await Future.delayed(const Duration(seconds: 1));
+        await Future.delayed(const Duration(seconds: 2));
       }
 
       if (employeeId == null) {
-        print('Initialization aborted: employeeId is null after retries');
+        print('Failed to load employeeId after 3 attempts');
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Không thể tải employeeId')),
+          const SnackBar(content: Text('Không thể tải employeeId. Vui lòng đăng nhập lại.')),
         );
+        return;
       }
 
-      // Fetch and notify about check-ins
       await _notifyCheckIns();
-
       setState(() {
         isLoading = false;
       });
+      print('Initialization completed successfully');
     } catch (e) {
       print('Error in _initializeData: $e');
       setState(() {
@@ -151,11 +158,11 @@ class _HomeHRPageState extends State<HomeHRPage> {
       print('Decoded userId from token: $userId');
 
       final url = Constants.employeeIdByUserIdUrl(userId);
-      print('Calling employeeId API: $url');
+      print('Fetching employeeId from: $url');
       final response = await http.get(
         Uri.parse(url),
         headers: {'Authorization': 'Bearer ${widget.token}'},
-      );
+      ).timeout(const Duration(seconds: 10));
 
       print('EmployeeId API response status: ${response.statusCode}');
       print('EmployeeId API response body: ${response.body}');
@@ -175,11 +182,43 @@ class _HomeHRPageState extends State<HomeHRPage> {
         throw Exception('Lỗi khi lấy employeeId: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('Lỗi khi tải employeeId: $e');
+      print('Error loading employeeId: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Lỗi khi tải employeeId: $e')),
       );
     }
+  }
+
+  Future<void> _startCheckInPolling() async {
+    print('Starting check-in polling');
+    final prefs = await SharedPreferences.getInstance();
+    _checkInTimer = Timer.periodic(const Duration(seconds: 5), (timer) async {
+      if (!mounted) {
+        print('Widget not mounted, cancelling polling');
+        timer.cancel();
+        return;
+      }
+      final value = prefs.getString('lastCheckIn');
+      if (value != null && value != _lastCheckInKey) {
+        try {
+          final checkIn = jsonDecode(value);
+          final employeeName = checkIn['employeeName']?.toString() ?? 'Unknown';
+          final employeeId = checkIn['employeeId']?.toString() ?? 'N/A';
+          final timestamp = checkIn['timestamp']?.toString() ?? 'N/A';
+          print('New check-in detected: $employeeName ($employeeId) at $timestamp');
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$employeeName ($employeeId) đã chấm công vào lúc $timestamp'),
+              duration: const Duration(seconds: 5),
+            ),
+          );
+          _lastCheckInKey = value;
+          setState(() {}); // Refresh attendance list
+        } catch (e) {
+          print('Error processing check-in: $e');
+        }
+      }
+    });
   }
 
   Future<void> _notifyCheckIns() async {
@@ -190,12 +229,15 @@ class _HomeHRPageState extends State<HomeHRPage> {
             .map((emp) =>
         '${emp.employeeName} (${emp.employeeId}) - ${DateFormat('HH:mm').format(emp.timestamp!)}')
             .join('\n');
+        print('Notifying check-ins:\n$message');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Nhân viên đã chấm công hôm nay:\n$message'),
             duration: const Duration(seconds: 5),
           ),
         );
+      } else {
+        print('No check-ins found for today');
       }
     } catch (e) {
       print('Error notifying check-ins: $e');
@@ -209,18 +251,19 @@ class _HomeHRPageState extends State<HomeHRPage> {
 
   Future<List<QRAttendanceModel>> _fetchCheckIns() async {
     try {
+      print('Fetching check-ins from: ${Constants.activeQrAttendanceUrl}');
       final response = await http.get(
         Uri.parse(Constants.activeQrAttendanceUrl),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
         },
-      );
+      ).timeout(const Duration(seconds: 10));
       print('Check-in API response status: ${response.statusCode}');
       print('Check-in API response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
+        final jsonData = jsonDecode(response.body);
         if (jsonData is List) {
           final today = DateTime.now().toIso8601String().split('T')[0];
           return jsonData
@@ -235,16 +278,20 @@ class _HomeHRPageState extends State<HomeHRPage> {
           throw Exception('Dữ liệu không đúng định dạng danh sách');
         }
       } else {
-        throw Exception('Lỗi khi tải dữ liệu chấm công: ${response.statusCode}');
+        throw Exception('Lỗi khi tải dữ liệu chấm công: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('Lỗi khi tải dữ liệu chấm công: $e');
+      print('Error fetching check-ins: $e');
       throw Exception('Lỗi khi tải dữ liệu chấm công: $e');
     }
   }
 
   void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
     if (index == _selectedIndex) return;
+    print('Bottom navigation tapped: index $index');
     setState(() => _selectedIndex = index);
     switch (index) {
       case 0:
@@ -253,29 +300,32 @@ class _HomeHRPageState extends State<HomeHRPage> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-              builder: (_) =>
-                  StaffScreen(username: widget.username, token: widget.token)),
+            builder: (_) => StaffScreen(username: widget.username, token: widget.token),
+          ),
         );
         break;
-      // case 2:
-      //   Navigator.pushReplacement(
-      //     context,
-      //     MaterialPageRoute(
-      //         builder: (_) => TimekeepingScreen(
-      //             username: widget.username, token: widget.token)),
-      //   );
-      //   break;
+      case 2:
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => WorkScheduleInfoListScreen(username: widget.username,token: widget.token),
+          ),
+        );
+        break;
       case 3:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Chức năng Báo cáo đang được phát triển')),
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => LeaveRequestPage(username: widget.username,token: widget.token),
+          ),
         );
         break;
       case 4:
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-              builder: (_) => HrSettingsPage(
-                  username: widget.username, token: widget.token)),
+            builder: (_) => HrSettingsPage(username: widget.username, token: widget.token),
+          ),
         );
         break;
     }
@@ -283,94 +333,139 @@ class _HomeHRPageState extends State<HomeHRPage> {
 
   Future<String?> getUserRoleId() async {
     try {
+      print('Fetching roles from: http://10.0.2.2:8080/api/roles');
       final response = await http.get(
-        Uri.parse('http://10.0.2.2:8080/api/roles'),
+        Uri.parse(Constants.rolesUrl),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-      );
+      ).timeout(const Duration(seconds: 10));
+      print('Roles API response status: ${response.statusCode}');
+      print('Roles API response body: ${response.body}');
+
       if (response.statusCode == 200) {
         final roles = jsonDecode(response.body)['result'] ?? [];
-        return roles.firstWhere((role) => role['roleName'] == 'User',
-            orElse: () => null)?['roleId'];
+        final userRole = roles.firstWhere(
+              (role) => role['roleName']?.toString().toLowerCase() == 'user',
+          orElse: () => null,
+        );
+        return userRole?['roleId']?.toString();
       }
+      throw Exception('Failed to fetch roles: ${response.statusCode}');
     } catch (e) {
       print('Error fetching roles: $e');
+      return null;
     }
-    return null;
   }
 
   Future<List<UserResponse>> fetchUsers({String? status}) async {
     final roleId = await getUserRoleId();
-    if (roleId == null) throw Exception('User role not found');
+    if (roleId == null) {
+      print('Error: User role ID not found');
+      throw Exception('Không tìm thấy roleId của User');
+    }
     try {
+      final url = '${Constants.baseUrl}/api/users${status != null ? '?status=$status' : ''}';
+      print('Fetching users from: $url');
       final response = await http.get(
-        Uri.parse(
-            'http://10.0.2.2:8080/api/users${status != null ? '?status=$status' : ''}'),
+        Uri.parse(url),
         headers: {
           'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-      );
+      ).timeout(const Duration(seconds: 10));
+      print('Users API response status: ${response.statusCode}');
+      print('Users API response body: ${response.body}');
+
       if (response.statusCode == 200) {
-        return (jsonDecode(response.body)['result'] ?? [])
+        final users = jsonDecode(response.body)['result'] ?? [];
+        return users
             .map<UserResponse>((json) => UserResponse.fromJson(json))
             .where((user) => user.role == roleId)
             .toList();
       }
-      throw Exception('Failed to load users: ${response.statusCode}');
+      throw Exception('Failed to load users: ${response.statusCode} - ${response.body}');
     } catch (e) {
-      throw Exception('Error fetching users: $e');
+      print('Error fetching users: $e');
+      throw Exception('Lỗi khi tải danh sách người dùng: $e');
     }
   }
 
   Future<int> fetchTotalEmployees() async {
-    final users = await fetchUsers();
-    return users.length;
+    try {
+      final users = await fetchUsers();
+      print('Total employees fetched: ${users.length}');
+      return users.length;
+    } catch (e) {
+      print('Error fetching total employees: $e');
+      return 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    print('Disposing HomeHRPage, cancelling check-in timer');
+    _checkInTimer?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(
+      appBar: _selectedIndex == 0
+          ? AppBar(
         backgroundColor: colors[1],
         elevation: 2,
         centerTitle: true,
         title: const Text(
-          'Quản lý Nhân sự',
+          'Tổng quan',
           style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w600, fontSize: 18),
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+          ),
         ),
         automaticallyImplyLeading: false,
-      ),
+      )
+          : null,
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _selectedIndex == 0
-          ? SingleChildScrollView(
-        padding:
-        const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: TodayAttendanceSection(
-                token: widget.token,
-                colors: colors,
-                employeeId: employeeId,
-              ),
+          : IndexedStack(
+        index: _selectedIndex,
+        children: [
+          // Tab 0: Tổng quan
+          SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: TodayAttendanceSection(
+                    token: widget.token,
+                    colors: colors,
+                    employeeId: employeeId,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                AttendanceRatio(colors: colors),
+              ],
             ),
-            const SizedBox(height: 24),
-            AttendanceRatio(colors: colors),
-          ],
-        ),
-      )
-          : Center(
-        child: Text(
-          'Chức năng đang được phát triển...',
-          style: TextStyle(color: colors[2], fontSize: 16),
-        ),
+          ),
+
+          // Tab 1: Nhân viên
+          StaffScreen(username: widget.username, token: widget.token),
+
+          // Tab 2: Ca làm
+          WorkScheduleInfoListScreen(username: widget.username, token: widget.token),
+
+          // Tab 3: Báo cáo (placeholder)
+          LeaveRequestPage(username: widget.username, token: widget.token),
+
+          // Tab 4: Cài đặt
+          HrSettingsPage(username: widget.username, token: widget.token),
+        ],
       ),
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
@@ -382,15 +477,25 @@ class _HomeHRPageState extends State<HomeHRPage> {
         type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
-              icon: Icon(Icons.dashboard_outlined), label: 'Tổng quan'),
+            icon: Icon(Icons.dashboard_outlined),
+            label: 'Tổng quan',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline), label: 'Nhân viên'),
+            icon: Icon(Icons.people_outline),
+            label: 'Nhân viên',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.fingerprint_outlined), label: 'Chấm công'),
+            icon: Icon(Icons.work_outline),
+            label: 'Ca làm',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.bar_chart_outlined), label: 'Báo cáo'),
+            icon: Icon(Icons.request_page_outlined),
+            label: 'Đơn xin nghỉ',
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.settings_outlined), label: 'Cài đặt'),
+            icon: Icon(Icons.manage_accounts_outlined),
+            label: 'Quản lý',
+          ),
         ],
       ),
     );
@@ -412,17 +517,23 @@ class AttendanceRatio extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
-              color: colors[0].withOpacity(0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 6))
+            color: colors[0].withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 6),
+          ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Tỷ lệ đi làm',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold, color: colors[3], fontSize: 16)),
+          Text(
+            'Tỷ lệ đi làm',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: colors[3],
+              fontSize: 16,
+            ),
+          ),
           const SizedBox(height: 12),
           ...data.entries.map((e) => AttendanceBar(
             label: e.key,
@@ -456,31 +567,41 @@ class AttendanceBar extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-              flex: 2,
-              child: Text(label,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 14))),
+            flex: 2,
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+            ),
+          ),
           Expanded(
             flex: 7,
             child: Stack(
               children: [
                 Container(
-                    height: 18,
-                    decoration: BoxDecoration(
-                        color: Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(10))),
+                  height: 18,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
                 Container(
-                    height: 18,
-                    width: MediaQuery.of(context).size.width * 0.6 * (percentage / 100),
-                    decoration: BoxDecoration(
-                        color: color, borderRadius: BorderRadius.circular(10))),
+                  height: 18,
+                  width: MediaQuery.of(context).size.width * 0.6 * (percentage / 100),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
               ],
             ),
           ),
           Expanded(
-              flex: 1,
-              child: Text('${percentage.toStringAsFixed(1)}%',
-                  style: const TextStyle(fontWeight: FontWeight.w600))),
+            flex: 1,
+            child: Text(
+              '${percentage.toStringAsFixed(1)}%',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
         ],
       ),
     );
@@ -501,18 +622,19 @@ class TodayAttendanceSection extends StatelessWidget {
 
   Future<List<QRAttendanceModel>> fetchAttendanceList() async {
     try {
+      print('Fetching attendance from: ${Constants.activeQrAttendanceUrl}');
       final response = await http.get(
         Uri.parse(Constants.activeQrAttendanceUrl),
         headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
         },
-      );
+      ).timeout(const Duration(seconds: 10));
       print('Attendance API response status: ${response.statusCode}');
       print('Attendance API response body: ${response.body}');
 
       if (response.statusCode == 200) {
-        final jsonData = json.decode(response.body);
+        final jsonData = jsonDecode(response.body);
         if (jsonData is List) {
           final today = DateTime.now().toIso8601String().split('T')[0];
           return jsonData
@@ -528,10 +650,10 @@ class TodayAttendanceSection extends StatelessWidget {
           throw Exception('Dữ liệu không đúng định dạng danh sách');
         }
       } else {
-        throw Exception('Lỗi khi tải dữ liệu chấm công: ${response.statusCode}');
+        throw Exception('Lỗi khi tải dữ liệu chấm công: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      print('Lỗi khi tải dữ liệu chấm công: $e');
+      print('Error fetching attendance: $e');
       throw Exception('Lỗi khi tải dữ liệu chấm công: $e');
     }
   }
@@ -541,9 +663,14 @@ class TodayAttendanceSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text('Đã chấm công hôm nay',
-            style: TextStyle(
-                fontWeight: FontWeight.w600, fontSize: 18, color: colors[3])),
+        Text(
+          'Đã chấm công hôm nay',
+          style: TextStyle(
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
+            color: colors[3],
+          ),
+        ),
         const SizedBox(height: 12),
         FutureBuilder<List<QRAttendanceModel>>(
           future: fetchAttendanceList(),
@@ -552,12 +679,17 @@ class TodayAttendanceSection extends StatelessWidget {
               return const Center(child: CircularProgressIndicator());
             }
             if (snapshot.hasError) {
-              return Text('Lỗi: ${snapshot.error}',
-                  style: TextStyle(color: colors[2], fontSize: 16));
+              print('Attendance fetch error: ${snapshot.error}');
+              return Text(
+                'Lỗi: ${snapshot.error}',
+                style: TextStyle(color: colors[2], fontSize: 16),
+              );
             }
             if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Text('Chưa có ai chấm công hôm nay',
-                  style: TextStyle(color: colors[2], fontSize: 16));
+              return Text(
+                'Chưa có ai chấm công hôm nay',
+                style: TextStyle(color: colors[2], fontSize: 16),
+              );
             }
 
             final attendances = snapshot.data!;
@@ -572,9 +704,11 @@ class TodayAttendanceSection extends StatelessWidget {
                   leading: CircleAvatar(
                     backgroundImage: emp.faceRecognitionImage.isNotEmpty
                         ? MemoryImage(base64Decode(emp.faceRecognitionImage))
-                        : const AssetImage('assets/default_avatar.png')
-                    as ImageProvider,
+                        : const AssetImage('assets/default_avatar.png') as ImageProvider,
                     radius: 24,
+                    onBackgroundImageError: (error, stackTrace) {
+                      print('Error loading face recognition image: $error');
+                    },
                   ),
                   title: Text(
                     emp.employeeName,
@@ -599,9 +733,7 @@ class TodayAttendanceSection extends StatelessWidget {
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: isPresent
-                              ? Colors.green.shade700
-                              : Colors.blue.shade700,
+                          color: isPresent ? Colors.green.shade700 : Colors.blue.shade700,
                         ),
                       ),
                     ],

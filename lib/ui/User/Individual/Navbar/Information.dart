@@ -184,8 +184,8 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
 
             final workInfo = {
               'Mã nhân viên': employeeData['employeeId'] ?? 'Không có thông tin',
-              'Phòng ban': employeeData['departmentId'] ?? 'Không có thông tin',
-              'Chức vụ': employeeData['positionId'] ?? 'Không có thông tin',
+              'Phòng ban': employeeData['departmentName'] ?? 'Không có thông tin',
+              'Chức vụ': employeeData['positionName'] ?? 'Không có thông tin',
               'Ngày vào làm': _formatDate(employeeData['hireDate']),
               'Ngày tạo hồ sơ': _formatDate(employeeData['createdAt']),
               'Ngày cập nhật': _formatDate(employeeData['updatedAt']),
