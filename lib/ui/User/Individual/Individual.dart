@@ -163,7 +163,7 @@ class PersonalPage extends StatelessWidget {
               );
             }
           }, backgroundColor: Colors.cyan),
-          buildMenuItem('Bảng phép, thâm niên', Icons.event_note, () async {
+          buildMenuItem('Đơn của tôi ', Icons.event_note, () async {
             try {
               // Lấy token từ SharedPreferences
               final prefs = await SharedPreferences.getInstance();
@@ -179,7 +179,7 @@ class PersonalPage extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => MyLeaveScreen(token: token),
+                  builder: (context) => MyRequestsScreen(token: token),
                 ),
               );
             } catch (e) {

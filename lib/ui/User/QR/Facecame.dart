@@ -44,9 +44,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       await _initializeCamera();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi quyền hoặc camera: $e')),
-      );
+      _showErrorDialog('Lỗi quyền hoặc camera: $e');
     }
   }
 
@@ -66,9 +64,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi khởi tạo camera: $e')),
-      );
+      _showErrorDialog('Lỗi khởi tạo camera: $e');
     }
   }
 
@@ -111,9 +107,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       await _sendImageToServer();
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi chụp ảnh: $e')),
-      );
+      _showErrorDialog('Lỗi chụp ảnh: $e');
     } finally {
       if (mounted) setState(() => _isCapturing = false);
     }
@@ -129,10 +123,8 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       if (token == null) throw Exception('Token không tồn tại');
 
       final decoded = JwtDecoder.decode(token);
-      final userId = decoded['userId']?.toString()
-          ?? decoded['sub']?.toString(); // fallback
+      final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
       if (userId == null) throw Exception('Không tìm thấy userId trong token');
-
 
       final employeeResponse = await http.get(
         Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
@@ -169,7 +161,6 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
       if (!mounted) return;
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // ✅ Gọi lại API lấy danh sách chấm công bằng QR sau khi đã chấm công khuôn mặt
         final qrAttendanceRes = await http.get(
           Uri.parse(Constants.qrAttendancesByEmployeeUrl(employeeId)),
           headers: {'Authorization': 'Bearer $token'},
@@ -177,8 +168,6 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
 
         if (qrAttendanceRes.statusCode == 200) {
           final List<dynamic> data = json.decode(qrAttendanceRes.body);
-
-          // Sắp xếp theo thời gian mới nhất
           data.sort((a, b) =>
               DateTime.parse(b['scanTime']).compareTo(DateTime.parse(a['scanTime'])));
 
@@ -207,23 +196,43 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
                 'checkOutTime': checkOut?['scanTime'] != null
                     ? DateFormat('HH:mm').format(DateTime.parse(checkOut!['scanTime']))
                     : '---',
-              }
-            ]
+              },
+            ],
           });
         } else {
           throw Exception('Lỗi khi lấy dữ liệu QR chấm công');
         }
       } else {
-        final message = response.body.isNotEmpty
-            ? jsonDecode(response.body)['message'] ?? 'Lỗi không rõ'
-            : 'Lỗi server';
-        throw Exception(message);
+        String errorMessage = 'Lỗi server';
+
+        try {
+          final body = response.body;
+          if (body.isNotEmpty) {
+            final parsed = json.decode(body);
+            if (parsed is Map && parsed['message'] != null) {
+              errorMessage = parsed['message'];
+            } else if (parsed is String) {
+              errorMessage = parsed;
+            } else {
+              errorMessage = body;
+            }
+          }
+        } catch (_) {
+          errorMessage = response.body;
+        }
+
+        if (errorMessage.contains('Already checked in and out for today.')) {
+          errorMessage = 'Bạn đã chấm công trong ngày hôm nay';
+        } else if (errorMessage.contains('No work schedules found for today.')) {
+          errorMessage = 'Bạn chưa đăng ký ca làm cho ngày hôm nay';
+        }
+
+        throw Exception(errorMessage);
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Lỗi gửi dữ liệu: $e')),
-      );
+      final errorMessage = e.toString().replaceFirst('Exception: ', '').trim();
+      _showErrorDialog(errorMessage);
     } finally {
       if (mounted) setState(() => _isUploading = false);
     }
@@ -237,12 +246,29 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
     _startFaceDetection();
   }
 
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('❗ Thông báo'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            child: const Text('Đóng'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _faceDetectionTimer?.cancel();
     _controller?.dispose();
     super.dispose();
   }
+
   Widget _buildOverlayWithCameraOrImage() {
     final double size = MediaQuery.of(context).size.width * 0.8;
 
@@ -264,17 +290,11 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
                   ? (_controller != null
                   ? CameraPreview(_controller!)
                   : Container(color: Colors.black))
-                  : Image.file(
-                File(_capturedImage!.path),
-                fit: BoxFit.cover,
-              ),
+                  : Image.file(File(_capturedImage!.path), fit: BoxFit.cover),
             ),
           ),
         ),
-        if (_showFlashEffect)
-          Container(
-            color: Colors.white.withOpacity(0.9),
-          ),
+        if (_showFlashEffect) Container(color: Colors.white.withOpacity(0.9)),
         Positioned(
           top: MediaQuery.of(context).padding.top + 30,
           left: 0,
@@ -300,8 +320,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
               builder: (context, value, child) {
                 return CircularProgressIndicator(
                   strokeWidth: 4,
-                  valueColor:
-                  const AlwaysStoppedAnimation(Color(0xFFF57C00)),
+                  valueColor: const AlwaysStoppedAnimation(Color(0xFFF57C00)),
                   backgroundColor: Colors.orange.withOpacity(0.2),
                   value: value,
                 );
@@ -311,9 +330,7 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: _capturedImage != null
-                      ? Colors.orange
-                      : Colors.grey,
+                  color: _capturedImage != null ? Colors.orange : Colors.grey,
                   width: 4,
                 ),
               ),
@@ -374,7 +391,10 @@ class _FaceAttendanceScreenState extends State<FaceAttendanceScreen> {
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.white),
         titleTextStyle: const TextStyle(
-            color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
+          color: Colors.white,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
         titleSpacing: -5,
       ),
       body: _isUploading

@@ -6,32 +6,30 @@ import 'package:sem4_fe/Service/Constants.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 
-class MyLeaveScreen extends StatefulWidget {
+class MyRequestsScreen extends StatefulWidget {
   final String token;
-  const MyLeaveScreen({required this.token, super.key});
+
+  const MyRequestsScreen({super.key, required this.token});
 
   @override
-  State<MyLeaveScreen> createState() => _MyLeaveScreenState();
+  State<MyRequestsScreen> createState() => _MyRequestsScreenState();
 }
 
-class _MyLeaveScreenState extends State<MyLeaveScreen> {
-  List<LeaveRequestModel> leaves = [];
+class _MyRequestsScreenState extends State<MyRequestsScreen> {
+  List<dynamic> allRequests = [];
   bool isLoading = true;
-  String? _token;
   String? _employeeId;
+  String? selectedStatus;
 
   @override
   void initState() {
     super.initState();
-    _loadTokenAndFetch();
+    _loadData();
   }
 
-  Future<void> _loadTokenAndFetch() async {
+  Future<void> _loadData() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      if (token == null) throw Exception('Token không tồn tại');
-
+      final token = widget.token;
       final decoded = JwtDecoder.decode(token);
       final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
       if (userId == null) throw Exception('Không tìm thấy userId trong token');
@@ -41,195 +39,237 @@ class _MyLeaveScreenState extends State<MyLeaveScreen> {
         headers: {'Authorization': 'Bearer $token'},
       );
 
-      if (empRes.statusCode != 200) {
-        throw Exception('Không lấy được employeeId từ userId');
-      }
+      if (empRes.statusCode != 200) throw Exception('Không lấy được employeeId');
 
       final employeeId = empRes.body.trim();
-      setState(() {
-        _token = token;
-        _employeeId = employeeId;
-      });
+      _employeeId = employeeId;
 
-      await _fetchLeaves(token, employeeId);
-    } catch (e) {
-      setState(() => isLoading = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi: ${e.toString()}'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-    }
-  }
-
-  Future<void> _fetchLeaves(String token, String employeeId) async {
-    final url = Uri.parse(Constants.myLeavesByEmployeeIdUrl(employeeId));
-    try {
-      final response = await http.get(
-        url,
-        headers: {
-          'Authorization': 'Bearer $token',
-          'Content-Type': 'application/json',
-        },
-      );
-
-      print('🔁 Status Code: ${response.statusCode}');
-      print('📦 Raw Body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final body = jsonDecode(response.body);
-        final data = body['result'];
-
-        if (data == null || data is! List) {
-          throw Exception('❌ Dữ liệu không hợp lệ hoặc không có danh sách đơn nghỉ phép');
-        }
-
-        setState(() {
-          leaves = data.map((e) => LeaveRequestModel.fromJson(e)).toList();
-          isLoading = false;
-        });
-      } else {
-        throw Exception('❌ Lỗi lấy dữ liệu: ${response.body}');
-      }
+      await _fetchData(token, employeeId);
     } catch (e) {
       setState(() => isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Lỗi: ${e.toString()}'),
-        backgroundColor: Colors.orange,
+        backgroundColor: Colors.red,
       ));
     }
   }
 
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'Approved':
-        return Colors.green.shade100;
-      case 'Pending':
-        return Colors.orange.shade100;
-      case 'Rejected':
-        return Colors.red.shade100;
-      default:
-        return Colors.grey.shade200;
+  Future<void> _fetchData(String token, String employeeId, {String? status}) async {
+    setState(() => isLoading = true);
+    try {
+      final leaveUrl = Uri.parse(Constants.leavesByEmployeeUrl(employeeId: employeeId, status: status));
+      final appealUrl = Uri.parse(Constants.attendanceAppealsByEmployeeAndStatusUrl(employeeId: employeeId, status: status));
+
+      final responses = await Future.wait([
+        http.get(leaveUrl, headers: {'Authorization': 'Bearer $token'}),
+        http.get(appealUrl, headers: {'Authorization': 'Bearer $token'}),
+      ]);
+
+      if (responses[0].statusCode != 200 || responses[1].statusCode != 200) {
+        throw Exception('Không thể tải dữ liệu');
+      }
+
+      final leaveList = jsonDecode(responses[0].body);
+      final appealList = jsonDecode(responses[1].body);
+
+      final allItems = <dynamic>[
+        ...leaveList.map((e) => LeaveRequestModel.fromJson(e)),
+        ...appealList.map((e) => AttendanceAppealModel.fromJson(e))
+      ];
+
+      setState(() {
+        allRequests = allItems;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() => isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Lỗi: ${e.toString()}'),
+        backgroundColor: Colors.red,
+      ));
     }
   }
 
-  IconData _getStatusIcon(String status) {
-    switch (status) {
-      case 'Approved':
-        return Icons.check_circle_outline;
-      case 'Pending':
-        return Icons.hourglass_bottom;
-      case 'Rejected':
-        return Icons.cancel_outlined;
-      default:
-        return Icons.help_outline;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Đơn nghỉ phép của tôi'),
-        backgroundColor: Colors.orange,
-        centerTitle: true,
-        elevation: 4,
-      ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : leaves.isEmpty
-          ? const Center(child: Text('Không có đơn nghỉ phép nào'))
-          : ListView.builder(
-        itemCount: leaves.length,
-        itemBuilder: (context, index) {
-          final leave = leaves[index];
-          return Card(
-            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            elevation: 3,
-            color: Colors.white, // ✅ luôn trắng
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: ListTile(
-              contentPadding: const EdgeInsets.all(16),
-              leading: Icon(
-                _getStatusIcon(leave.status),
-                color: Colors.deepOrange,
-                size: 32,
-              ),
-              title: Text(
-                '${leave.leaveType} (${leave.status})',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '📅 Từ ${DateFormat('dd/MM/yyyy').format(leave.leaveStartDate)} '
-                          'đến ${DateFormat('dd/MM/yyyy').format(leave.leaveEndDate)}',
-                    ),
-                    const SizedBox(height: 4),
-                    Text('👤 Mã nhân viên: ${leave.employeeId}'),
-                    const SizedBox(height: 4),
-                    Text('🟢 Trạng thái: ${_getStatusText(leave.status)}'),
-                  ],
-                ),
-              ),
-            ),
-          );
-        },
+  Widget _buildLeaveCard(LeaveRequestModel leave) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: ListTile(
+        leading: Icon(Icons.calendar_month, color: Colors.orange),
+        title: Text('Đơn nghỉ phép (${leave.status})'),
+        subtitle: Text(
+          'Từ ${DateFormat('dd/MM/yyyy').format(leave.startDate)} đến ${DateFormat('dd/MM/yyyy').format(leave.endDate)}',
+        ),
       ),
     );
   }
 
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'Approved':
-        return '✔️ Đã duyệt';
-      case 'Pending':
-        return '⏳ Đang chờ duyệt';
-      case 'Rejected':
-        return '❌ Từ chối';
-      default:
-        return status;
-    }
+  Widget _buildAppealCard(AttendanceAppealModel appeal) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Column(
+        children: [
+          ListTile(
+            leading: Icon(Icons.edit_note, color: Colors.blue),
+            title: Text('Đơn giải trình (${appeal.status})'),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('📝 Lý do: ${appeal.reason}'),
+                Text('📅 Ngày gửi: ${DateFormat('dd/MM/yyyy').format(appeal.createdAt)}'),
+                if (appeal.reviewedBy != null)
+                  Text('👤 Duyệt bởi: ${appeal.reviewedBy!}'),
+                if (appeal.reviewedAt != null)
+                  Text('🕒 Duyệt lúc: ${DateFormat('dd/MM/yyyy HH:mm').format(appeal.reviewedAt!)}'),
+                if (appeal.note != null && appeal.note!.isNotEmpty)
+                  Text('🗒️ Ghi chú: ${appeal.note!}'),
+              ],
+            ),
+          ),
+          if (appeal.evidence != null && appeal.evidence!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: Text('Ảnh bằng chứng'),
+                      content: Image.memory(
+                        base64Decode(appeal.evidence!),
+                        fit: BoxFit.contain,
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('Đóng'),
+                        )
+                      ],
+                    ),
+                  );
+                },
+                icon: Icon(Icons.image),
+                label: Text('Xem bằng chứng'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final token = widget.token;
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Đơn của tôi'),
+        backgroundColor: Colors.orange,
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: DropdownButton<String>(
+              hint: const Text("Chọn trạng thái"),
+              value: selectedStatus,
+              isExpanded: true,
+              items: ['Approved', 'Pending', 'Rejected']
+                  .map((status) => DropdownMenuItem(
+                value: status,
+                child: Text(status),
+              ))
+                  .toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedStatus = value;
+                  _fetchData(token, _employeeId!, status: value);
+                });
+              },
+            ),
+          ),
+          Expanded(
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : allRequests.isEmpty
+                ? const Center(child: Text('Không có đơn nào'))
+                : ListView.builder(
+              itemCount: allRequests.length,
+              itemBuilder: (context, index) {
+                final item = allRequests[index];
+                if (item is LeaveRequestModel) {
+                  return _buildLeaveCard(item);
+                } else if (item is AttendanceAppealModel) {
+                  return _buildAppealCard(item);
+                }
+                return const SizedBox();
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
+// ===== Models =====
+
 class LeaveRequestModel {
-  final String leaveId;
+  final String id;
   final String employeeId;
-  final String leaveType;
   final String status;
-  final String activeStatus;
-  final DateTime leaveStartDate;
-  final DateTime leaveEndDate;
+  final DateTime startDate;
+  final DateTime endDate;
 
   LeaveRequestModel({
-    required this.leaveId,
+    required this.id,
     required this.employeeId,
-    required this.leaveType,
     required this.status,
-    required this.activeStatus,
-    required this.leaveStartDate,
-    required this.leaveEndDate,
+    required this.startDate,
+    required this.endDate,
   });
 
   factory LeaveRequestModel.fromJson(Map<String, dynamic> json) {
     return LeaveRequestModel(
-      leaveId: json['leaveId'],
+      id: json['leaveId'],
       employeeId: json['employeeId'].toString(),
-      leaveType: json['leaveType'],
       status: json['status'],
-      activeStatus: json['activeStatus'],
-      leaveStartDate: DateTime.parse(json['leaveStartDate']),
-      leaveEndDate: DateTime.parse(json['leaveEndDate']),
+      startDate: DateTime.parse(json['leaveStartDate']),
+      endDate: DateTime.parse(json['leaveEndDate']),
+    );
+  }
+}
+
+class AttendanceAppealModel {
+  final String id;
+  final String status;
+  final String reason;
+  final String? evidence;
+  final DateTime createdAt;
+  final String? reviewedBy;
+  final DateTime? reviewedAt;
+  final String? note;
+
+  AttendanceAppealModel({
+    required this.id,
+    required this.status,
+    required this.reason,
+    required this.createdAt,
+    this.evidence,
+    this.reviewedBy,
+    this.reviewedAt,
+    this.note,
+  });
+
+  factory AttendanceAppealModel.fromJson(Map<String, dynamic> json) {
+    return AttendanceAppealModel(
+      id: json['appealId'],
+      status: json['status'],
+      reason: json['reason'],
+      createdAt: DateTime.parse(json['appealDate']),
+      evidence: json['evidence'],
+      reviewedBy: json['reviewedBy']?['username'],
+      reviewedAt: json['reviewedAt'] != null ? DateTime.parse(json['reviewedAt']) : null,
+      note: json['note'],
     );
   }
 }
