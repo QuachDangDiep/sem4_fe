@@ -1,5 +1,5 @@
 class Constants {
-  static const String baseUrl = 'http://10.0.2.2:8080';
+  static const String baseUrl = 'http://192.168.1.16:8080';
 
   static const String loginUrl = '$baseUrl/api/auth/login';
   static const String homeUrl = '$baseUrl/api/users';
@@ -84,6 +84,29 @@ class Constants {
 
     return url;
   }
+  static String leavesByEmployeeUrl({
+    required String employeeId,
+    String? status,
+  }) {
+    String url = '$baseUrl/api/leaves/employee/$employeeId/leaves';
+    if (status != null && status.isNotEmpty) {
+      url += '?status=$status';
+    }
+    return url;
+  }
+
+  static String attendanceAppealsByEmployeeAndStatusUrl({
+    required String employeeId,
+    String? status,
+  }) {
+    String url = '$baseUrl/api/attendance-appeals/by-employee?employeeId=$employeeId';
+    if (status != null && status.isNotEmpty) {
+      url += '&status=$status';
+    }
+    return url;
+  }
+
+
 
 
 }

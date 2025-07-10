@@ -10,10 +10,7 @@ import 'dart:convert';
 class QRScannerScreen extends StatefulWidget {
   final String token;
 
-  const QRScannerScreen({
-    Key? key,
-    required this.token,
-  }) : super(key: key);
+  const QRScannerScreen({Key? key, required this.token}) : super(key: key);
 
   @override
   State<QRScannerScreen> createState() => _QRScannerScreenState();
@@ -22,8 +19,6 @@ class QRScannerScreen extends StatefulWidget {
 class _QRScannerScreenState extends State<QRScannerScreen> {
   bool _isProcessing = false;
   bool _isSuccess = false;
-  String? _errorMessage;
-  Map<String, dynamic>? _attendanceData;
   String? employeeId;
 
   @override
@@ -40,9 +35,7 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
       final response = await http.get(
         Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
+        headers: {'Authorization': 'Bearer $token'},
       );
 
       if (response.statusCode == 200) {
@@ -53,10 +46,24 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         throw Exception('Không lấy được employeeId từ userId');
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Lỗi khi lấy employeeId: ${e.toString()}';
-      });
+      _showErrorDialog('Lỗi khi lấy employeeId: ${e.toString()}');
     }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('❗ Thông báo'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            child: const Text('Đóng'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -91,39 +98,24 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
             top: 100,
             left: 0,
             right: 0,
-            child: Column(
-              children: [
-                Text(
-                  _isProcessing
-                      ? 'Đang xử lý...'
-                      : employeeId == null
-                      ? 'Đang tải mã nhân viên...'
-                      : 'Quét mã QR tại đây',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+            child: Center(
+              child: Text(
+                _isProcessing
+                    ? 'Đang xử lý...'
+                    : employeeId == null
+                    ? 'Đang tải mã nhân viên...'
+                    : 'Quét mã QR tại đây',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
-                if (_errorMessage != null)
-                  Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      _errorMessage!,
-                      style: const TextStyle(
-                        color: Colors.red,
-                        fontSize: 16,
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
           ),
           Positioned.fill(
             child: IgnorePointer(
-              child: CustomPaint(
-                painter: _QRScannerOverlay(),
-              ),
+              child: CustomPaint(painter: _QRScannerOverlay()),
             ),
           ),
         ],
@@ -134,12 +126,14 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
   Future<void> _processQRCode(String qrCode) async {
     setState(() {
       _isProcessing = true;
-      _errorMessage = null;
     });
 
     try {
       final token = widget.token;
-      final uuidRegex = RegExp(r'[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}');
+
+      final uuidRegex = RegExp(
+        r'[0-9a-fA-F]{8}-([0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}',
+      );
       final match = uuidRegex.firstMatch(qrCode);
       if (match == null) throw Exception("QR không chứa UUID hợp lệ");
 
@@ -161,33 +155,54 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
           'Authorization': 'Bearer $token',
         },
         body: jsonEncode({
-          'employee': {
-            'employeeId': employeeId,
-          },
-          'qrInfo': {
-            'qrInfoId': qrInfoId,
-          }
+          'employee': {'employeeId': employeeId},
+          'qrInfo': {'qrInfoId': qrInfoId},
         }),
       );
 
       if (attendanceResponse.statusCode != 200) {
-        throw Exception('Lỗi khi tạo bản ghi chấm công: ${attendanceResponse.body}');
+        String errorMessage = 'Lỗi không xác định';
+        final contentType = attendanceResponse.headers['content-type'];
+
+        try {
+          final responseBody = attendanceResponse.body;
+
+          if (contentType != null && contentType.contains('application/json')) {
+            final decoded = json.decode(responseBody);
+            if (decoded is Map && decoded['message'] != null) {
+              errorMessage = decoded['message'];
+            } else if (decoded is String) {
+              errorMessage = decoded;
+            }
+          } else {
+            errorMessage = responseBody;
+          }
+
+          if (errorMessage.contains('Already checked in and out for today.')) {
+            errorMessage = 'Bạn đã chấm công trong ngày hôm nay';
+          } else if (errorMessage.contains('No work schedules found for today.')) {
+            errorMessage = 'Bạn chưa đăng ký ca làm cho ngày hôm nay';
+          }
+        } catch (_) {
+          errorMessage = 'Lỗi phân tích dữ liệu từ máy chủ';
+        }
+
+        throw Exception(errorMessage);
       }
 
-// ✅ GỌI API để lấy danh sách chấm công mới
       final shiftsResponse = await http.get(
         Uri.parse(Constants.qrAttendancesByEmployeeUrl(employeeId!)),
-        headers: {
-          'Authorization': 'Bearer $token',
-        },
+        headers: {'Authorization': 'Bearer $token'},
       );
 
       if (shiftsResponse.statusCode == 200) {
         final List<dynamic> shifts = json.decode(shiftsResponse.body);
 
-        // Sắp xếp giảm dần theo thời gian
-        shifts.sort((a, b) =>
-            DateTime.parse(b['scanTime']).compareTo(DateTime.parse(a['scanTime'])));
+        shifts.sort(
+              (a, b) => DateTime.parse(
+            b['scanTime'],
+          ).compareTo(DateTime.parse(a['scanTime'])),
+        );
 
         Map<String, dynamic>? checkIn, checkOut;
         for (var record in shifts) {
@@ -210,16 +225,14 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
               'checkOutTime': checkOut?['scanTime'] != null
                   ? DateFormat('HH:mm').format(DateTime.parse(checkOut!['scanTime']))
                   : '---',
-            }
+            },
           ],
         });
       } else {
         throw Exception('Không thể lấy dữ liệu ca làm mới');
       }
     } catch (e) {
-      setState(() {
-        _errorMessage = 'Lỗi: ${e.toString()}';
-      });
+      _showErrorDialog('Lỗi: ${e.toString().replaceFirst("Exception: ", "")}');
     } finally {
       setState(() {
         _isProcessing = false;
@@ -256,46 +269,14 @@ class _QRScannerOverlay extends CustomPainter {
       ..strokeWidth = 6
       ..style = PaintingStyle.stroke;
 
-    canvas.drawLine(
-      innerRect.topLeft,
-      innerRect.topLeft + Offset(cornerLength, 0),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      innerRect.topLeft,
-      innerRect.topLeft + Offset(0, cornerLength),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      innerRect.topRight,
-      innerRect.topRight - Offset(cornerLength, 0),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      innerRect.topRight,
-      innerRect.topRight + Offset(0, cornerLength),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      innerRect.bottomLeft,
-      innerRect.bottomLeft + Offset(cornerLength, 0),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      innerRect.bottomLeft,
-      innerRect.bottomLeft - Offset(0, cornerLength),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      innerRect.bottomRight,
-      innerRect.bottomRight - Offset(cornerLength, 0),
-      cornerPaint,
-    );
-    canvas.drawLine(
-      innerRect.bottomRight,
-      innerRect.bottomRight - Offset(0, cornerLength),
-      cornerPaint,
-    );
+    canvas.drawLine(innerRect.topLeft, innerRect.topLeft + Offset(cornerLength, 0), cornerPaint);
+    canvas.drawLine(innerRect.topLeft, innerRect.topLeft + Offset(0, cornerLength), cornerPaint);
+    canvas.drawLine(innerRect.topRight, innerRect.topRight - Offset(cornerLength, 0), cornerPaint);
+    canvas.drawLine(innerRect.topRight, innerRect.topRight + Offset(0, cornerLength), cornerPaint);
+    canvas.drawLine(innerRect.bottomLeft, innerRect.bottomLeft + Offset(cornerLength, 0), cornerPaint);
+    canvas.drawLine(innerRect.bottomLeft, innerRect.bottomLeft - Offset(0, cornerLength), cornerPaint);
+    canvas.drawLine(innerRect.bottomRight, innerRect.bottomRight - Offset(cornerLength, 0), cornerPaint);
+    canvas.drawLine(innerRect.bottomRight, innerRect.bottomRight - Offset(0, cornerLength), cornerPaint);
   }
 
   @override

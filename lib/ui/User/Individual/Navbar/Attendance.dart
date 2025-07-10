@@ -6,7 +6,6 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sem4_fe/Service/Constants.dart';
-import 'package:dropdown_button2/dropdown_button2.dart';
 import 'package:syncfusion_flutter_xlsio/xlsio.dart' as xlsio;
 
 class Attendance {
@@ -44,13 +43,12 @@ class AttendanceService {
     required String employeeId,
     required String fromDate,
     required String toDate,
-    String? status,
   }) async {
     final url = Constants.filterAttendancesUrlWithStatus(
       employeeId: employeeId,
       fromDate: fromDate,
       toDate: toDate,
-      status: status,
+      status: null,
     );
 
     final res = await http.get(Uri.parse(url), headers: _buildHeaders());
@@ -87,13 +85,6 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
 
   DateTime fromDate = DateTime.now().subtract(const Duration(days: 7));
   DateTime toDate = DateTime.now();
-
-  String? selectedStatus;
-  final List<String> statusOptions = ['All', 'Present', 'Absent', 'Late', 'On Leave'];
-
-  int selectedMonth = DateTime.now().month;
-
-  final List<String> months = List.generate(12, (index) => 'Tháng ${index + 1}');
 
   bool _isLoading = false;
 
@@ -142,7 +133,6 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
         employeeId: employeeId!,
         fromDate: formattedFrom,
         toDate: formattedTo,
-        status: selectedStatus == null || selectedStatus == 'All' ? null : selectedStatus,
       );
 
       setState(() => _attendances = list);
@@ -199,12 +189,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: const Text('Tổng hợp chấm công', style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 20,
-          color: Colors.white,
-        ),
-      ),
+        title: const Text('Tổng hợp chấm công', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white)),
         backgroundColor: Colors.orange,
       ),
       body: _isLoading
@@ -224,78 +209,50 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                 child: Padding(
                   padding: const EdgeInsets.all(12),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const Text("📆 Chọn khoảng thời gian:", style: TextStyle(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 12),
                       Row(
                         children: [
-                          const Icon(Icons.calendar_month_outlined, color: Colors.orange, size: 22),
-                          const SizedBox(width: 8),
                           Expanded(
-                            child: Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.grey.withOpacity(0.15),
-                                    spreadRadius: 1,
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              padding: const EdgeInsets.symmetric(horizontal: 12),
-                              child: DropdownButtonHideUnderline(
-                                child: DropdownButton<int>(
-                                  value: selectedMonth,
-                                  icon: const Icon(Icons.expand_more_rounded, color: Colors.orange),
-                                  dropdownColor: Colors.white,
-                                  style: const TextStyle(color: Colors.black, fontSize: 14),
-                                  borderRadius: BorderRadius.circular(12),
-                                  isExpanded: true,
-                                  items: List.generate(12, (index) {
-                                    final month = index + 1;
-                                    return DropdownMenuItem<int>(
-                                      value: month,
-                                      child: Text('Tháng $month'),
-                                    );
-                                  }),
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() {
-                                        selectedMonth = value;
-                                        final now = DateTime.now();
-                                        fromDate = DateTime(now.year, selectedMonth, 1);
-                                        toDate = DateTime(now.year, selectedMonth + 1, 0);
-                                      });
-                                      _loadAttendances();
-                                    }
-                                  },
-                                ),
-                              ),
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.date_range),
+                              label: Text(DateFormat('dd/MM/yyyy').format(fromDate)),
+                              onPressed: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: fromDate,
+                                  firstDate: DateTime(2023),
+                                  lastDate: DateTime.now(),
+                                );
+                                if (picked != null) {
+                                  setState(() => fromDate = picked);
+                                  _loadAttendances();
+                                }
+                              },
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Trạng thái:'),
-                          DropdownButton<String>(
-                            value: selectedStatus ?? 'All',
-                            style: const TextStyle(fontSize: 14, color: Colors.black),
-                            borderRadius: BorderRadius.circular(12),
-                            items: statusOptions.map((status) {
-                              return DropdownMenuItem<String>(
-                                value: status,
-                                child: Text(status),
-                              );
-                            }).toList(),
-                            onChanged: (value) async {
-                              setState(() => selectedStatus = value);
-                              await _loadAttendances();
-                            },
+                          const SizedBox(width: 8),
+                          const Text("→"),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              icon: const Icon(Icons.date_range),
+                              label: Text(DateFormat('dd/MM/yyyy').format(toDate)),
+                              onPressed: () async {
+                                final picked = await showDatePicker(
+                                  context: context,
+                                  initialDate: toDate,
+                                  firstDate: DateTime(2023),
+                                  lastDate: DateTime.now(),
+                                );
+                                if (picked != null) {
+                                  setState(() => toDate = picked);
+                                  _loadAttendances();
+                                }
+                              },
+                            ),
                           ),
                         ],
                       ),
@@ -304,7 +261,6 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                 ),
               ),
 
-              // Nút export
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton.icon(
@@ -322,12 +278,12 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
               ),
 
               const SizedBox(height: 16),
-              const Text('📝 Danh sách chấm công:',
-                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+              const Text('📝 Danh sách chấm công:', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
 
-              // Danh sách chấm công
-              ListView.builder(
+              _attendances.isEmpty
+                  ? const Center(child: Text('Không có dữ liệu'))
+                  : ListView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _attendances.length,
@@ -345,8 +301,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                         ),
                       ),
-                      title: Text(att.employeeId,
-                          style: const TextStyle(fontWeight: FontWeight.bold)),
+                      title: Text(att.employeeId, style: const TextStyle(fontWeight: FontWeight.bold)),
                       subtitle: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
