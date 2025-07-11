@@ -228,6 +228,7 @@ class _LeaveRegistrationPageState extends State<LeaveRegistrationPage> {
             fontSize: 20,
             color: Colors.white,
           ),),
+          centerTitle: true,
           backgroundColor: Colors.orange,
         ),
         body: const Center(child: CircularProgressIndicator()),
@@ -262,7 +263,12 @@ class _LeaveRegistrationPageState extends State<LeaveRegistrationPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Đăng ký nghỉ phép'),
+        title: const Text('Đăng ký nghỉ phép',style: TextStyle(
+          fontWeight: FontWeight.bold,
+          fontSize: 20,
+          color: Colors.white,
+        ),),
+        centerTitle: true,
         backgroundColor: Colors.orange,
       ),
       body: _isLoading
@@ -296,6 +302,9 @@ class _LeaveRegistrationPageState extends State<LeaveRegistrationPage> {
                 validator: (value) => value == null ? 'Vui lòng chọn loại nghỉ' : null,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.amber, width: 2),
+                  ),
                   contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 ),
               ),
@@ -310,8 +319,10 @@ class _LeaveRegistrationPageState extends State<LeaveRegistrationPage> {
                 child: InputDecorator(
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
-                    contentPadding:
-                    EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.amber, width: 2),
+                    ),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -340,8 +351,10 @@ class _LeaveRegistrationPageState extends State<LeaveRegistrationPage> {
                 child: InputDecorator(
                   decoration: const InputDecoration(
                     border: OutlineInputBorder(),
-                    contentPadding:
-                    EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    focusedBorder: OutlineInputBorder(
+                      borderSide: BorderSide(color: Colors.amber, width: 2),
+                    ),
+                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -368,6 +381,9 @@ class _LeaveRegistrationPageState extends State<LeaveRegistrationPage> {
                 maxLines: 3,
                 decoration: const InputDecoration(
                   border: OutlineInputBorder(),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: BorderSide(color: Colors.amber, width: 2),
+                  ),
                   hintText: 'Nhập lý do nghỉ...',
                 ),
                 validator: (value) {

@@ -241,7 +241,7 @@ class PersonalPage extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ChangePasswordPage(userId: userId.toString(), token: '',),
+                  builder: (context) => ChangePasswordPage(token: token,),
                 ),
               );
             } catch (e) {

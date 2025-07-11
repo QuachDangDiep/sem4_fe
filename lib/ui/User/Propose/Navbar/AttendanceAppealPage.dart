@@ -1,7 +1,5 @@
-
 import 'dart:convert';
 import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -79,11 +77,11 @@ class _AttendanceAppealPageState extends State<AttendanceAppealPage> {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
-              primary: Colors.orange, // Màu cam cho header
-              onPrimary: Colors.white, // Chữ trắng trên header
-              onSurface: Colors.black, // Chữ chính trong dialog
+              primary: Colors.orange,
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
             ),
-            dialogBackgroundColor: Colors.white, // Nền trắng
+            dialogBackgroundColor: Colors.white,
           ),
           child: child!,
         );
@@ -121,7 +119,8 @@ class _AttendanceAppealPageState extends State<AttendanceAppealPage> {
 
     final requestBody = {
       'employeeId': employeeId,
-      'attendanceId': selectedAttendanceId, // có thể null
+      'attendanceId': selectedAttendanceId,
+      'targetDate': DateFormat('yyyy-MM-dd').format(selectedDate!),
       'reason': reasonController.text,
       'evidence': selectedImage != null ? base64Encode(selectedImage!.readAsBytesSync()) : '',
     };
@@ -156,116 +155,115 @@ class _AttendanceAppealPageState extends State<AttendanceAppealPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Giải trình chấm công',style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 20,
-          color: Colors.white,
-        ),),
+        title: const Text(
+          'Giải trình chấm công',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            color: Colors.white,
+          ),
+        ),
         backgroundColor: Colors.orange,
         centerTitle: true,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '📅 Chọn ngày muốn giải trình:',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '📅 Chọn ngày muốn chấm công lại:',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                border: Border.all(color: Colors.orange),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      selectedDate != null
-                          ? '🗓️ Ngày đã chọn: ${DateFormat('dd/MM/yyyy').format(selectedDate!)}'
-                          : '⚠️ Chưa chọn ngày',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ),
-                  ElevatedButton.icon(
-                    onPressed: () => _selectDate(context),
-                    icon: const Icon(Icons.date_range),
-                    label: const Text('Chọn ngày'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              '📝 Lý do giải trình:',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: reasonController,
-              decoration: InputDecoration(
-                hintText: 'Nhập lý do...',
-                filled: true,
-                fillColor: Colors.grey.shade100,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                focusedBorder: OutlineInputBorder(
-                  borderSide: const BorderSide(color: Colors.orange),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade100,
+                  border: Border.all(color: Colors.orange),
                   borderRadius: BorderRadius.circular(10),
                 ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        selectedDate != null
+                            ? '🗓️ Ngày đã chọn: ${DateFormat('dd/MM/yyyy').format(selectedDate!)}'
+                            : '⚠️ Chưa chọn ngày',
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () => _selectDate(context),
+                      icon: const Icon(Icons.date_range),
+                      label: const Text('Chọn ngày'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.orange,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              maxLines: 4,
-            ),
-            const SizedBox(height: 20),
-            Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: pickImage,
-                  icon: const Icon(Icons.image_outlined),
-                  label: const Text('Thêm hình ảnh'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange.shade400,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              const SizedBox(height: 20),
+              const Text(
+                '📝 Lý do giải trình:',
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: reasonController,
+                decoration: InputDecoration(
+                  hintText: 'Nhập lý do...',
+                  filled: true,
+                  fillColor: Colors.grey.shade100,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  focusedBorder: OutlineInputBorder(
+                    borderSide: const BorderSide(color: Colors.orange),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
-                const SizedBox(width: 12),
-                if (selectedImage != null)
-                  const Icon(Icons.check_circle, color: Colors.green),
-              ],
-            ),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: submitAppeal,
-                icon: const Icon(Icons.send),
-                label: const Text('Gửi giải trình'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: 3,
+                maxLines: 4,
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: pickImage,
+                    icon: const Icon(Icons.image_outlined),
+                    label: const Text('Thêm hình ảnh'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange.shade400,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  if (selectedImage != null)
+                    const Icon(Icons.check_circle, color: Colors.green),
+                ],
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed: submitAppeal,
+                  icon: const Icon(Icons.send),
+                  label: const Text('Gửi giải trình'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    elevation: 3,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

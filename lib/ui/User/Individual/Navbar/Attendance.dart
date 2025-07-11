@@ -211,7 +211,14 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("📆 Chọn khoảng thời gian:", style: TextStyle(fontWeight: FontWeight.bold)),
+                      const Text(
+                        "📆 Chọn khoảng thời gian:",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: Color(0xFFEF6C00),
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       Row(
                         children: [
@@ -219,12 +226,37 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                             child: ElevatedButton.icon(
                               icon: const Icon(Icons.date_range),
                               label: Text(DateFormat('dd/MM/yyyy').format(fromDate)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xFFFFB300),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                              ),
                               onPressed: () async {
                                 final picked = await showDatePicker(
                                   context: context,
                                   initialDate: fromDate,
                                   firstDate: DateTime(2023),
                                   lastDate: DateTime.now(),
+                                  builder: (context, child) {
+                                    return Theme(
+                                      data: Theme.of(context).copyWith(
+                                        colorScheme: const ColorScheme.light(
+                                          primary: Color(0xFFFFB300), // màu viền + icon
+                                          onPrimary: Colors.white, // màu chữ trên nút
+                                          onSurface: Colors.black, // màu chữ ngày
+                                        ),
+                                        dialogBackgroundColor: Color(0xFFFFF3E0), // nền dialog
+                                        textButtonTheme: TextButtonThemeData(
+                                          style: TextButton.styleFrom(
+                                            foregroundColor: Color(0xFFEF6C00), // màu nút CANCEL / OK
+                                          ),
+                                        ),
+                                      ),
+                                      child: child!,
+                                    );
+                                  },
                                 );
                                 if (picked != null) {
                                   setState(() => fromDate = picked);
@@ -240,12 +272,37 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                             child: ElevatedButton.icon(
                               icon: const Icon(Icons.date_range),
                               label: Text(DateFormat('dd/MM/yyyy').format(toDate)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Color(0xFFFFB300),
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                              ),
                               onPressed: () async {
                                 final picked = await showDatePicker(
-                                  context: context,
-                                  initialDate: toDate,
-                                  firstDate: DateTime(2023),
-                                  lastDate: DateTime.now(),
+                                    context: context,
+                                    initialDate: toDate,
+                                    firstDate: DateTime(2023),
+                                    lastDate: DateTime.now(),
+                                    builder: (context, child) {
+                                      return Theme(
+                                        data: Theme.of(context).copyWith(
+                                          colorScheme: const ColorScheme.light(
+                                            primary: Color(0xFFFFB300), // màu viền + icon
+                                            onPrimary: Colors.white, // màu chữ trên nút
+                                            onSurface: Colors.black, // màu chữ ngày
+                                          ),
+                                          dialogBackgroundColor: Color(0xFFFFF3E0), // nền dialog
+                                          textButtonTheme: TextButtonThemeData(
+                                            style: TextButton.styleFrom(
+                                              foregroundColor: Color(0xFFEF6C00), // màu nút CANCEL / OK
+                                            ),
+                                          ),
+                                        ),
+                                        child: child!,
+                                      );
+                                    }
                                 );
                                 if (picked != null) {
                                   setState(() => toDate = picked);

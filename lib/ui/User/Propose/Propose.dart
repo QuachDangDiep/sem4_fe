@@ -46,30 +46,6 @@ class _ProposalPageState extends State<ProposalPage> {
     );
   }
 
-  Future<void> _handleShiftRegistrationNavigation() async {
-    if (_token == null || _token!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng đăng nhập lại')),
-      );
-      return;
-    }
-
-    final prefs = await SharedPreferences.getInstance();
-    final hasRegistered = prefs.getBool('has_registered_this_week') ?? false;
-
-    if (hasRegistered) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => WorkSchedulePage(token: _token!)),
-      );
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => WeeklyShiftSelectionScreen(token: _token!)),
-      );
-    }
-  }
-
   Widget buildProposalItem(String title, IconData icon, Color color, VoidCallback onTap) {
     return ListTile(
       leading: CircleAvatar(
@@ -110,7 +86,10 @@ class _ProposalPageState extends State<ProposalPage> {
             'Đăng ký ca làm việc',
             Icons.note_alt,
             Colors.deepPurple,
-            _handleShiftRegistrationNavigation,
+                () => _navigateIfAuthenticated(
+              context,
+                  WeeklyShiftSelectionScreen(token: _token!),
+            ),
           ),
           buildProposalItem(
             'Xem lịch làm việc',
@@ -118,28 +97,28 @@ class _ProposalPageState extends State<ProposalPage> {
             Colors.deepOrange,
                 () => _navigateIfAuthenticated(
               context,
-              WorkSchedulePage(token: _token!),
+                  WeeklyShiftSelectionScreenHistory(token: _token!),
             ),
           ),
-          buildProposalItem(
-            'Đổi ca',
-            Icons.sync_alt,
-            Colors.green,
-                () {
-              if (_token == null || _token!.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Vui lòng đăng nhập lại')),
-                );
-                return;
-              }
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChangeShiftPage(token: _token!),
-                ),
-              );
-            },
-          ),
+          // buildProposalItem(
+          //   'Đổi ca',
+          //   Icons.sync_alt,
+          //   Colors.green,
+          //       () {
+          //     if (_token == null || _token!.isEmpty) {
+          //       ScaffoldMessenger.of(context).showSnackBar(
+          //         const SnackBar(content: Text('Vui lòng đăng nhập lại')),
+          //       );
+          //       return;
+          //     }
+          //     Navigator.push(
+          //       context,
+          //       MaterialPageRoute(
+          //         builder: (_) => ChangeShiftPage(token: _token!),
+          //       ),
+          //     );
+          //   },
+          // ),
           buildProposalItem(
             'Giải trình chấm công',
             Icons.report_problem,

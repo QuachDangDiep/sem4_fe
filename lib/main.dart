@@ -9,6 +9,7 @@ import 'package:sem4_fe/services/fcm_service.dart';
 import 'package:sem4_fe/services/notification_service.dart';
 import 'package:sem4_fe/ui/login/Login.dart';
 import 'firebase_options.dart';
+import 'package:intl/date_symbol_data_local.dart';
 
 // ✅ Global navigator key
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -95,6 +96,7 @@ void main() async {
 
   // ✅ Khởi tạo FaceCamera
   await FaceCamera.initialize();
+  await initializeDateFormatting('vi_VN', null);
 
   runApp(const MyApp());
 }

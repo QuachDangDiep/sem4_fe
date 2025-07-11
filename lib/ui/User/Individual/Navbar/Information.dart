@@ -22,7 +22,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
   Future<Map<String, dynamic>> _employeeInfo = Future.value({});
   bool _isLoading = true;
 
-
   @override
   void initState() {
     super.initState();
@@ -39,84 +38,63 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
       if (userId == null) throw Exception('Không tìm thấy userId trong token');
 
-      // Bước 1: Lấy employeeId từ userId
+      // Lấy employeeId từ userId
       final idRes = await http.get(
         Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
         headers: {'Authorization': 'Bearer $token'},
       );
-
-      if (idRes.statusCode != 200) {
-        throw Exception('Không lấy được employeeId');
-      }
+      if (idRes.statusCode != 200) throw Exception('Không lấy được employeeId');
 
       final employeeId = idRes.body.trim();
 
-      // Bước 2: Gọi API mới để lấy thông tin chi tiết nhân viên
+      // Lấy thông tin chi tiết nhân viên
       final infoRes = await http.get(
         Uri.parse(Constants.employeeDetailUrl(employeeId)),
         headers: {'Authorization': 'Bearer $token'},
       );
-
-      if (infoRes.statusCode != 200) {
-        throw Exception('Không lấy được thông tin nhân viên');
-      }
+      if (infoRes.statusCode != 200) throw Exception('Không lấy được thông tin nhân viên');
 
       final data = json.decode(infoRes.body);
+      data['token'] = token; // Truyền token qua màn Update
+
       setState(() {
         _employeeInfo = Future.value(data);
       });
     } catch (e) {
-      print('❌ Lỗi trong quá trình lấy thông tin: $e');
+      print('❌ Lỗi: $e');
       setState(() {
-        _employeeInfo = Future.error('Lỗi khi truy xuất thông tin nhân viên: ${e.toString()}');
+        _employeeInfo = Future.error('Lỗi khi lấy dữ liệu: ${e.toString()}');
       });
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
 
-  // Helper method to format date
   String _formatDate(String? dateString) {
-    if (dateString == null || dateString.isEmpty) {
-      return 'Không có thông tin';
-    }
+    if (dateString == null || dateString.isEmpty) return 'Không có thông tin';
     try {
-      DateTime date = DateTime.parse(dateString);
+      final date = DateTime.parse(dateString);
       return '${date.day}/${date.month}/${date.year}';
     } catch (e) {
-      return dateString; // Return original string if parsing fails
+      return dateString;
     }
   }
 
-  // Helper method to get icon for each field
   IconData _getIconForField(String fieldName) {
     switch (fieldName) {
-      case 'Họ tên':
-        return Icons.person;
-      case 'Mã nhân viên':
-        return Icons.badge;
-      case 'Phòng ban':
-        return Icons.work;
-      case 'Chức vụ':
-        return Icons.assignment_ind;
-      case 'Giới tính':
-        return Icons.transgender;
-      case 'Ngày sinh':
-        return Icons.cake;
-      case 'Số điện thoại':
-        return Icons.phone;
-      case 'Địa chỉ':
-        return Icons.location_on;
-      case 'Ngày vào làm':
-        return Icons.date_range;
-      case 'Trạng thái':
-        return Icons.work_outline;
-      default:
-        return Icons.info;
+      case 'Họ tên': return Icons.person;
+      case 'Mã nhân viên': return Icons.badge;
+      case 'Phòng ban': return Icons.work;
+      case 'Chức vụ': return Icons.assignment_ind;
+      case 'Giới tính': return Icons.transgender;
+      case 'Ngày sinh': return Icons.cake;
+      case 'Số điện thoại': return Icons.phone;
+      case 'Địa chỉ': return Icons.location_on;
+      case 'Ngày vào làm': return Icons.date_range;
+      case 'Trạng thái': return Icons.work_outline;
+      default: return Icons.info;
     }
   }
 
@@ -134,21 +112,19 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                 backgroundColor: Colors.orange,
                 automaticallyImplyLeading: true,
                 centerTitle: true,
-                title: const Text(
-                  'Thông tin cá nhân',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
+                title: const Text('Thông tin cá nhân', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 actions: [
                   if (snapshot.hasData)
                     IconButton(
                       icon: const Icon(Icons.edit, color: Colors.white),
-                      onPressed: () {
-                        Navigator.push(
+                      onPressed: () async {
+                        final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (context) => UpdatePersonalInfoScreen(employeeData: snapshot.data!),
                           ),
                         );
+                        if (result == true) _fetchEmployeeInfo(); // Reload nếu có cập nhật
                       },
                     ),
                 ],
@@ -159,21 +135,11 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         body: FutureBuilder<Map<String, dynamic>>(
           future: _employeeInfo,
           builder: (context, snapshot) {
-            if (_isLoading) {
-              return Center(child: CircularProgressIndicator());
-            }
-            if (snapshot.hasError) {
-              return Center(child: Text('Lỗi: ${snapshot.error}'));
-            }
-
-            if (!snapshot.hasData || snapshot.data!.isEmpty) {
-              return Center(child: Text('Không có dữ liệu nhân viên'));
-            }
+            if (_isLoading) return const Center(child: CircularProgressIndicator());
+            if (snapshot.hasError) return Center(child: Text('Lỗi: ${snapshot.error}'));
+            if (!snapshot.hasData || snapshot.data!.isEmpty) return const Center(child: Text('Không có dữ liệu nhân viên'));
 
             final employeeData = snapshot.data!;
-            final department = employeeData['department'] ?? {};
-            final position = employeeData['position'] ?? {};
-
             final personalInfo = {
               'Họ tên': employeeData['fullName'] ?? 'Không có thông tin',
               'Giới tính': employeeData['gender'] ?? 'Không có thông tin',
@@ -184,63 +150,65 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
 
             final workInfo = {
               'Mã nhân viên': employeeData['employeeId'] ?? 'Không có thông tin',
-              'Phòng ban': employeeData['departmentId'] ?? 'Không có thông tin',
-              'Chức vụ': employeeData['positionId'] ?? 'Không có thông tin',
+              'Phòng ban': employeeData['departmentName'] ?? 'Không có thông tin',
+              'Chức vụ': employeeData['positionName'] ?? 'Không có thông tin',
               'Ngày vào làm': _formatDate(employeeData['hireDate']),
               'Ngày tạo hồ sơ': _formatDate(employeeData['createdAt']),
               'Ngày cập nhật': _formatDate(employeeData['updatedAt']),
               'Trạng thái': employeeData['status'] ?? 'Không có thông tin',
             };
 
+            // Avatar
+            final imgData = employeeData['img'] ?? '';
+            ImageProvider avatarProvider;
+            if (imgData.toString().startsWith("data:image")) {
+              final base64Str = imgData.split(',').last;
+              avatarProvider = MemoryImage(base64Decode(base64Str));
+            } else if (imgData.toString().startsWith("http")) {
+              avatarProvider = NetworkImage(imgData);
+            } else {
+              avatarProvider = const AssetImage('assets/images/avatar_placeholder.png');
+            }
+
             return Column(
               children: [
-                SizedBox(height: 16),
-                // Avatar và thông tin cơ bản
+                const SizedBox(height: 16),
                 Center(
-                  child: (employeeData['img'] ?? '').toString().isNotEmpty
-                      ? CircleAvatar(
+                  child: CircleAvatar(
                     radius: 50,
-                    backgroundImage: NetworkImage(employeeData['img']),
+                    backgroundImage: avatarProvider,
                     backgroundColor: Colors.grey[200],
-                  )
-                      : CircleAvatar(
-                    radius: 50,
-                    child: Icon(Icons.person, size: 50, color: Colors.white),
-                    backgroundColor: Colors.orange,
                   ),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 12),
                 Text(
                   employeeData['fullName'] ?? '',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                 ),
                 Text(
                   'Mã NV: ${employeeData['employeeId'] ?? 'Không có'}',
                   style: TextStyle(color: Colors.grey[600]),
                 ),
-                SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-                // TabBar ngay bên dưới avatar
                 TabBar(
                   labelColor: Colors.orange,
                   unselectedLabelColor: Colors.grey,
                   indicatorColor: Colors.orange,
-                  tabs: [
+                  tabs: const [
                     Tab(text: 'Cá nhân'),
                     Tab(text: 'Làm việc'),
                   ],
                 ),
-
-                // Nội dung tab
                 Expanded(
                   child: TabBarView(
                     children: [
                       SingleChildScrollView(
-                        padding: EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(16),
                         child: _buildInfoList(personalInfo),
                       ),
                       SingleChildScrollView(
-                        padding: EdgeInsets.all(16),
+                        padding: const EdgeInsets.all(16),
                         child: _buildInfoList(workInfo),
                       ),
                     ],
@@ -254,17 +222,14 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
     );
   }
 
-
-
-  // Widget chung để hiển thị list thông tin
   Widget _buildInfoList(Map<String, dynamic> infoMap) {
     return ListView.separated(
       shrinkWrap: true,
-      physics: NeverScrollableScrollPhysics(),
+      physics: const NeverScrollableScrollPhysics(),
       itemCount: infoMap.length,
-      separatorBuilder: (context, index) => SizedBox(height: 6),
+      separatorBuilder: (context, index) => const SizedBox(height: 6),
       itemBuilder: (context, index) {
-        String key = infoMap.keys.elementAt(index);
+        final key = infoMap.keys.elementAt(index);
         return Card(
           elevation: 1,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -273,7 +238,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               backgroundColor: Colors.orange[100],
               child: Icon(_getIconForField(key), color: Colors.orange),
             ),
-            title: Text(key, style: TextStyle(fontWeight: FontWeight.bold)),
+            title: Text(key, style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text(infoMap[key]?.toString() ?? ''),
           ),
         );

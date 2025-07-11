@@ -129,28 +129,49 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange.shade50, // màu nền nhẹ
+                  foregroundColor: Colors.orange, // màu chữ/icon
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Colors.orange.shade200),
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
                 onPressed: () {
                   showDialog(
                     context: context,
                     builder: (_) => AlertDialog(
-                      title: Text('Ảnh bằng chứng'),
-                      content: Image.memory(
-                        base64Decode(appeal.evidence!),
-                        fit: BoxFit.contain,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      title: const Text('Ảnh bằng chứng'),
+                      content: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.memory(
+                          base64Decode(appeal.evidence!),
+                          fit: BoxFit.contain,
+                        ),
                       ),
                       actions: [
-                        TextButton(
+                        TextButton.icon(
                           onPressed: () => Navigator.of(context).pop(),
-                          child: const Text('Đóng'),
-                        )
+                          icon: const Icon(Icons.close),
+                          label: const Text('Đóng'),
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.orange,
+                          ),
+                        ),
                       ],
                     ),
                   );
                 },
-                icon: Icon(Icons.image),
-                label: Text('Xem bằng chứng'),
+                icon: const Icon(Icons.image),
+                label: const Text('Xem bằng chứng'),
               ),
-            ),
+            )
         ],
       ),
     );
