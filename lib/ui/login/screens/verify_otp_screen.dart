@@ -71,8 +71,8 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
 
   Widget _buildOtpField(int index) {
     return SizedBox(
-      width: 50,
-      height: 55,
+      width: 45,
+      height: 50,
       child: TextField(
         controller: _controllers[index],
         focusNode: _focusNodes[index],
@@ -275,16 +275,6 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                             ),
                           ),
                         ),
-                        // Positioned(
-                        //   bottom: -20,
-                        //   left: 0,
-                        //   right: 0,
-                        //   child: Image.asset(
-                        //     'assets/hr.png',
-                        //     height: 200,
-                        //     fit: BoxFit.contain,
-                        //   ),
-                        // ),
                       ],
                     ),
                   ],

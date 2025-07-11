@@ -5,6 +5,8 @@ import 'package:sem4_fe/ui/Hr/Setting/AccountSettingsSection.dart';
 import 'package:sem4_fe/ui/Hr/Setting/Navbar/DepartmentManagementPage.dart';
 import 'package:sem4_fe/ui/Hr/Setting/Navbar/PositionManagementPage.dart';
 import 'package:sem4_fe/ui/Hr/Setting/Navbar/HRWorkScheduleScreen.dart';
+import 'package:sem4_fe/ui/Hr/Setting/Navbar/AttendanceManagementScreen.dart';
+import 'package:sem4_fe/ui/User/Propose/Navbar/AttendanceAppealPage.dart';
 
 class SettingItem {
   final IconData icon;
@@ -35,7 +37,9 @@ class _HrSettingsPageState extends State<HrSettingsPage> {
     SettingItem(Icons.person, 'Cài đặt tài khoản'),
     SettingItem(Icons.apartment, 'Quản lý phòng ban'),
     SettingItem(Icons.badge, 'Quản lý chức vụ'),
-    SettingItem(Icons.info, 'Thông tin ứng dụng'),
+    SettingItem(Icons.schedule, 'Quản lý chấm công'),       // Lịch làm việc, chấm công
+    SettingItem(Icons.edit_note, 'Giải trình chấm công'),   // Giải trình, ghi chú
+    SettingItem(Icons.info_outline, 'Thông tin ứng dụng'),  // Thông tin chung
   ];
 
   @override
@@ -127,6 +131,10 @@ class _HrSettingsPageState extends State<HrSettingsPage> {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => PositionListScreen(token: widget.token)));
                 } else if (item.title == 'Danh sách đăng ký ca làm') {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => HRWorkScheduleScreen(token: widget.token)));
+                } else if (item.title == 'Quản lý chấm công') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => AttendanceManagementScreen()));
+                  } else if (item.title == 'Giải trình chấm công') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => AttendanceAppealPage(token: widget.token)));
                 } else if (item.title == 'Thông tin ứng dụng') {
                   showDialog(
                     context: context,

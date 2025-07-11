@@ -7,7 +7,7 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:sem4_fe/ui/User/Homeuser/Homeuser.dart';
 import 'package:sem4_fe/Service/Constants.dart';
 import 'package:sem4_fe/ui/login/screens/send_otp_screen.dart';
-import 'package:sem4_fe/ui/hr/home/HomeHr.dart';
+import 'package:sem4_fe/ui/Hr/home/HomeHr.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {

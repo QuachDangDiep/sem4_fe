@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:sem4_fe/Service/Constants.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class UpdatePersonalInfoScreen extends StatefulWidget {
   final Map<String, dynamic> employeeData;
@@ -19,10 +21,25 @@ class UpdatePersonalInfoScreen extends StatefulWidget {
 
 class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
   final _formKey = GlobalKey<FormState>();
-
   late TextEditingController _dobController;
   late TextEditingController _phoneController;
   late TextEditingController _addressController;
+
+  File? _selectedImage;
+  String? _base64Image;
+
+  final ImagePicker _picker = ImagePicker();
+
+  @override
+  void initState() {
+    super.initState();
+    final data = widget.employeeData;
+
+    _dobController = TextEditingController(text: _formatDate(data['dateOfBirth']));
+    _phoneController = TextEditingController(text: data['phone'] ?? '');
+    _addressController = TextEditingController(text: data['address'] ?? '');
+    _base64Image = data['img']; // Load ảnh gốc từ backend nếu có
+  }
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -39,6 +56,39 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
     }
   }
 
+  String _formatDate(String? dateString) {
+    if (dateString == null || dateString.isEmpty) return '';
+    try {
+      DateTime date = DateTime.parse(dateString);
+      return DateFormat('dd/MM/yyyy').format(date);
+    } catch (e) {
+      return dateString;
+    }
+  }
+
+  String _parseDate(String input) {
+    try {
+      final date = DateFormat('dd/MM/yyyy').parse(input);
+      return DateFormat('yyyy-MM-dd').format(date);
+    } catch (e) {
+      return input;
+    }
+  }
+
+  Future<void> _pickImage() async {
+    final pickedFile = await _picker.pickImage(source: ImageSource.gallery);
+    if (pickedFile == null) return;
+
+    final bytes = await pickedFile.readAsBytes();
+    final base64Str = base64Encode(bytes);
+    final ext = pickedFile.path.split('.').last;
+
+    setState(() {
+      _selectedImage = File(pickedFile.path);
+      _base64Image = "data:image/$ext;base64,$base64Str";
+    });
+  }
+
   Future<void> _updateEmployeeInfo() async {
     final token = widget.employeeData['token'] ?? '';
     final employeeId = widget.employeeData['employeeId'] ?? '';
@@ -47,10 +97,16 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
     final parsedDate = _parseDate(dob);
 
     final body = {
+      "fullName": widget.employeeData['fullName'] ?? "",
+      "gender": widget.employeeData['gender'] ?? "Other",
       "dateOfBirth": parsedDate,
       "phone": _phoneController.text.trim(),
       "address": _addressController.text.trim(),
+      "img": widget.employeeData['img'] ?? "",
+      "departmentId": widget.employeeData['departmentId'] ?? null,
+      "positionId": widget.employeeData['positionId'] ?? null,
     };
+
 
     try {
       final response = await http.put(
@@ -79,46 +135,14 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
     }
   }
 
-  String _parseDate(String input) {
-    try {
-      final date = DateFormat('dd/MM/yyyy').parse(input);
-      return DateFormat('yyyy-MM-dd').format(date);
-    } catch (e) {
-      return input;
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-
-    final data = widget.employeeData;
-
-    _dobController = TextEditingController(
-      text: _formatDate(data['dateOfBirth']),
-    );
-
-    _phoneController = TextEditingController(
-      text: data['phone'] ?? '',
-    );
-
-    _addressController = TextEditingController(
-      text: data['address'] ?? '',
-    );
-  }
-
-  String _formatDate(String? dateString) {
-    if (dateString == null || dateString.isEmpty) return '';
-    try {
-      DateTime date = DateTime.parse(dateString);
-      return DateFormat('dd/MM/yyyy').format(date);
-    } catch (e) {
-      return dateString;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
+    final avatarImage = _selectedImage != null
+        ? FileImage(_selectedImage!)
+        : (_base64Image != null && _base64Image!.startsWith("data:image"))
+        ? MemoryImage(base64Decode(_base64Image!.split(',').last)) as ImageProvider
+        : const AssetImage('assets/images/avatar_placeholder.png');
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Cập nhật thông tin'),
@@ -130,9 +154,34 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
         child: Form(
           key: _formKey,
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              _buildLabel('Ngày sinh', true),
+              // Avatar
+              GestureDetector(
+                onTap: _pickImage,
+                child: Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundImage: avatarImage,
+                      backgroundColor: Colors.grey[300],
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.orange,
+                      ),
+                      child: const Icon(Icons.camera_alt, color: Colors.white, size: 20),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Form fields
+              Align(alignment: Alignment.centerLeft, child: _buildLabel('Ngày sinh', true)),
               GestureDetector(
                 onTap: () => _selectDate(context),
                 child: AbsorbPointer(
@@ -144,7 +193,7 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
               ),
               const SizedBox(height: 16),
 
-              _buildLabel('Số điện thoại'),
+              Align(alignment: Alignment.centerLeft, child: _buildLabel('Số điện thoại')),
               TextFormField(
                 controller: _phoneController,
                 keyboardType: TextInputType.phone,
@@ -152,7 +201,7 @@ class _UpdatePersonalInfoScreenState extends State<UpdatePersonalInfoScreen> {
               ),
               const SizedBox(height: 16),
 
-              _buildLabel('Địa chỉ hiện tại'),
+              Align(alignment: Alignment.centerLeft, child: _buildLabel('Địa chỉ hiện tại')),
               TextFormField(
                 controller: _addressController,
                 maxLines: 3,

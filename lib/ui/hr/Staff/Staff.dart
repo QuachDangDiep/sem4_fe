@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:sem4_fe/ui/Hr/Staff/Narbar/AddEditStaffScreen.dart';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../Service/Constants.dart';
@@ -261,6 +262,29 @@ class _StaffScreenState extends State<StaffScreen> {
     }
   }
 
+  Future<void> deleteEmployee(String employeeId, String token, BuildContext context) async {
+    final response = await http.delete(
+      Uri.parse(Constants.employeeDetailUrl(employeeId)),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Xóa nhân viên thành công')),
+      );
+      // Cập nhật lại danh sách nếu bạn cần
+    } else {
+      final error = jsonDecode(response.body);
+      final message = error['message'] ?? 'Đã có lỗi xảy ra';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi khi xóa: $message')),
+      );
+    }
+  }
+
   void refreshUsers() async {
     try {
       if (_userRoleId == null) {
@@ -314,11 +338,26 @@ class _StaffScreenState extends State<StaffScreen> {
         backgroundColor: colors[1],
         elevation: 2,
         centerTitle: true,
+        automaticallyImplyLeading: false,
         title: const Text(
           'Quản lý Nhân sự',
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
-        automaticallyImplyLeading: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add, color: Colors.white),
+            tooltip: 'Thêm nhân viên',
+            onPressed: () async {
+              final result = await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => AddEmployeeScreen(token: widget.token),
+                ),
+              );
+              if (result == true) refreshUsers();
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -527,6 +566,10 @@ class _StaffScreenState extends State<StaffScreen> {
                       dateOfBirth: user.dateOfBirth,
                       hireDate: user.hireDate,
                       token: widget.token,
+                      onDelete: (employeeId) async {
+                        await deleteEmployee(employeeId, widget.token, context);
+                        refreshUsers(); // gọi lại danh sách sau khi xóa
+                      },
                     );
                   },
                 );
@@ -544,6 +587,25 @@ class _StaffScreenState extends State<StaffScreen> {
   }
 }
 
+Widget _buildTag({required String text, required Color color}) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    decoration: BoxDecoration(
+      color: color.withOpacity(0.1),
+      border: Border.all(color: color),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      text,
+      style: TextStyle(
+        color: color,
+        fontSize: 11,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+}
+
 class StaffCard extends StatelessWidget {
   final String name, id, status, shift, image;
   final String? positionName;
@@ -555,6 +617,7 @@ class StaffCard extends StatelessWidget {
   final String? hireDate;
   final List<Color> colors;
   final String token;
+  final Future<void> Function(String employeeId)? onDelete;
 
   const StaffCard({
     Key? key,
@@ -572,6 +635,7 @@ class StaffCard extends StatelessWidget {
     this.dateOfBirth,
     this.hireDate,
     required this.token,
+    this.onDelete, // <- thêm dòng này
   }) : super(key: key);
 
   @override
@@ -582,8 +646,8 @@ class StaffCard extends StatelessWidget {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 4,
-      shadowColor: Colors.black.withOpacity(0.05),
+      elevation: 3,
+      shadowColor: Colors.grey.shade200,
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
         onTap: () {
@@ -593,6 +657,7 @@ class StaffCard extends StatelessWidget {
               builder: (_) => StaffDetailScreen(
                 employeeId: id,
                 fullName: name,
+                token: token,
                 status: status,
                 image: image,
                 positionName: positionName,
@@ -607,71 +672,137 @@ class StaffCard extends StatelessWidget {
           );
         },
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.all(14),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  border: Border.all(color: Colors.grey.shade300, width: 2),
-                ),
-                child: CircleAvatar(
-                  radius: 28,
-                  backgroundImage: image.startsWith('http')
-                      ? NetworkImage(image)
-                      : const AssetImage('assets/avatar.jpg') as ImageProvider,
-                ),
+              // Avatar
+              CircleAvatar(
+                radius: 30,
+                backgroundImage: image.startsWith('http')
+                    ? NetworkImage(image)
+                    : const AssetImage('assets/avatar.jpg') as ImageProvider,
               ),
               const SizedBox(width: 16),
+
+              // Thông tin
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                    Text(name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        )),
                     const SizedBox(height: 4),
-                    Text('Mã NV: $id', style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                    Text('Mã NV: $id', style: const TextStyle(fontSize: 12, color: Colors.black54)),
                     if (positionName != null && positionName!.isNotEmpty)
-                      Text('Chức vụ: $positionName', style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                      Text('Chức vụ: $positionName', style: const TextStyle(fontSize: 12, color: Colors.black54)),
                     if (departmentName != null && departmentName!.isNotEmpty)
-                      Text('Phòng ban: $departmentName', style: const TextStyle(fontSize: 13, color: Colors.black54)),
+                      Text('Phòng ban: $departmentName', style: const TextStyle(fontSize: 12, color: Colors.black54)),
+
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _buildTag(text: status, color: status == 'Đang làm việc' ? Colors.green : Colors.red),
+                        const SizedBox(width: 6),
+                        if (shift != 'Không có ca')
+                          _buildTag(text: shift, color: Colors.orange),
+                      ],
+                    ),
                   ],
                 ),
               ),
+
+              // Nút sửa / xóa
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: statusColor,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: statusTextColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (shift != 'Không có ca' && shift.trim().isNotEmpty)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        shift,
-                        style: const TextStyle(
-                          color: Color(0xFFEF6C00),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                  IconButton(
+                    icon: const Icon(Icons.edit, color: Colors.orange),
+                    tooltip: 'Chỉnh sửa',
+                    onPressed: () async {
+                      // Kiểm tra ID có hợp lệ không (null hoặc rỗng)
+                      final isEditing = id != null && id.isNotEmpty;
+                      final result = await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AddEmployeeScreen(
+                            token: token,
+                            employeeId: isEditing ? id : null, // <-- chỉ truyền nếu hợp lệ
+                          ),
                         ),
-                      ),
-                    ),
+                      );
+                      if (result == true) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Cập nhật thành công')),
+                        );
+                      }
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete, color: Colors.red),
+                    tooltip: 'Xóa nhân viên',
+                    onPressed: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: Colors.grey[100], // nền sáng nhẹ
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          title: const Text(
+                            'Xác nhận xóa',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                              fontSize: 18,
+                            ),
+                          ),
+                          content: const Text(
+                            'Bạn có chắc muốn xóa nhân viên này không?',
+                            style: TextStyle(
+                              color: Colors.black54,
+                              fontSize: 16,
+                            ),
+                          ),
+                          actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          actionsAlignment: MainAxisAlignment.end,
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.grey[700],
+                              ),
+                              child: const Text(
+                                'Hủy',
+                                style: TextStyle(fontSize: 15),
+                              ),
+                            ),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text(
+                                'Xóa',
+                                style: TextStyle(fontSize: 15),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true && onDelete != null) {
+                        await onDelete!(id);
+                      }
+                    },
+                  ),
                 ],
               ),
             ],

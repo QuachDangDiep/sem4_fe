@@ -4,8 +4,9 @@ class Constants {
   static const String loginUrl = '$baseUrl/api/auth/login';
   static const String homeUrl = '$baseUrl/api/users';
   static const String rolesUrl = '$baseUrl/api/roles';
-
   static String leaveDetailUrl(String id) => '$baseUrl/api/leaves/$id';
+
+  static const String employeeUrl = '$baseUrl/api/employees';
 
   static const String locationUrl = "$baseUrl/api/locations";
   static String changePasswordUrl(String userId) => "$baseUrl/api/users/$userId/change-password";
@@ -24,6 +25,10 @@ class Constants {
   static const String attendanceUrl = '$baseUrl/api/qrattendance/face';
   static const String qrScanUrl = '$baseUrl/api/qrattendance';
   static const String activeQrAttendanceUrl = '$baseUrl/api/qrattendance/active';
+  static String qrAttendanceDetailUrl(String qrId) => '$baseUrl/api/qrattendance/$qrId';
+
+  static String employeeHistoryByEmployeeIdUrl(String employeeId) =>
+      '$baseUrl/api/employee-histories/employee/$employeeId';
 
   // static String qrAttendancesByEmployeeUrl(String employeeId) =>
   //     '$baseUrl/api/qrattendance/with-employees/$employeeId';
@@ -47,6 +52,8 @@ class Constants {
 
   static String getRoleByIdUrl(String roleId) => '$baseUrl/api/roles/$roleId';
 
+  static const String getActiveDepartments = '$baseUrl/api/departments?status=Active';
+
   static String summaryUrl(String formattedDate) =>
       '$baseUrl/api/attendances/summary?date=$formattedDate';
 
@@ -61,7 +68,6 @@ class Constants {
       '$baseUrl/api/attendance-appeals?employeeId=$employeeId';
 
   static String postAttendanceAppealUrl = '$baseUrl/api/attendance-appeals';
-
 
   static String qrAttendancesByEmployeeUrl(String employeeId) =>
       '$baseUrl/api/qrattendance/by-employee?employeeId=$employeeId';
@@ -105,6 +111,36 @@ class Constants {
     }
     return url;
   }
+
+  // ✅ API đăng ký OT (dùng createBulk)
+  static const String registerOvertimeUrl = '$baseUrl/api/work-schedules/bulk';
+
+// ✅ API duyệt OT
+  static String approveOvertimeUrl(String scheduleId) =>
+      '$baseUrl/api/work-schedules/approve-ot/$scheduleId';
+
+// ✅ API xoá mềm
+  static String softDeleteWorkScheduleUrl(String scheduleId) =>
+      '$baseUrl/api/work-schedules/soft-delete/$scheduleId';
+
+// ✅ API xem tất cả lịch (basic)
+  static const String getAllWorkSchedulesUrl = '$baseUrl/api/work-schedules';
+
+// ✅ API lấy lịch làm việc chi tiết theo khoảng thời gian
+  static String workSchedulesByDateRangeUrl({
+    required String employeeId,
+    required String fromDate,
+    required String toDate,
+  }) =>
+      '$baseUrl/api/work-schedules/range?employeeId=$employeeId&fromDate=$fromDate&toDate=$toDate';
+
+// ✅ API xem lịch làm việc có thể chỉnh sửa
+  static String editableWorkSchedulesUrl({
+    required String employeeId,
+    required String fromDate,
+    required String toDate,
+  }) =>
+      '$baseUrl/api/work-schedules/editable?employeeId=$employeeId&fromDate=$fromDate&toDate=$toDate';
 
 
 

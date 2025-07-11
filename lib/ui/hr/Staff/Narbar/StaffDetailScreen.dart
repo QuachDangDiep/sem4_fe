@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/WorkHistory.dart';
 
 class StaffDetailScreen extends StatelessWidget {
   final String employeeId;
@@ -12,6 +13,7 @@ class StaffDetailScreen extends StatelessWidget {
   final String? address;
   final String? dateOfBirth;
   final String? hireDate;
+  final String token;
 
   const StaffDetailScreen({
     Key? key,
@@ -19,6 +21,7 @@ class StaffDetailScreen extends StatelessWidget {
     required this.fullName,
     required this.status,
     required this.image,
+    required this.token,
     this.positionName,
     this.departmentName,
     this.gender,
@@ -96,6 +99,27 @@ class StaffDetailScreen extends StatelessWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 20),
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => WorkHistoryScreen(token: token),
+                  ),
+                );
+              },
+              child: Card(
+                color: Colors.orange.shade50,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                elevation: 2,
+                child: ListTile(
+                  leading: const Icon(Icons.history, color: Colors.orange),
+                  title: const Text('Xem lịch sử làm việc'),
+                  trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -148,4 +172,3 @@ class InfoTile extends StatelessWidget {
     );
   }
 }
-

@@ -1,12 +1,18 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:sem4_fe/ui/Hr/Setting/Navbar/PositionManagementPage.dart';
 import 'package:sem4_fe/Service/Constants.dart';
 
 class AddPositionScreen extends StatefulWidget {
-  final String token; // bạn cần truyền vào token khi gọi màn hình này
+  final String token;
+  final Position? position;// bạn cần truyền vào token khi gọi màn hình này
 
-  const AddPositionScreen({Key? key, required this.token}) : super(key: key);
+  const AddPositionScreen({
+    Key? key,
+    required this.token,
+    this.position, // 👈 Đánh dấu là không bắt buộc
+  }) : super(key: key);
 
   @override
   State<AddPositionScreen> createState() => _AddPositionScreenState();
@@ -15,44 +21,54 @@ class AddPositionScreen extends StatefulWidget {
 class _AddPositionScreenState extends State<AddPositionScreen> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
+  String _status = 'Active';
 
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // 👇 Nếu là chế độ sửa thì gán dữ liệu cũ vào form
+    if (widget.position != null) {
+      _nameController.text = widget.position!.positionName;
+      _status = widget.position!.status;
+    }
+  }
 
   Future<void> _submitPosition() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    final uri = widget.position == null
+        ? Uri.parse(Constants.positionsUrl)
+        : Uri.parse('${Constants.positionsUrl}/${widget.position!.positionId}');
 
-    try {
-      final response = await http.post(
-        Uri.parse(Constants.positionsUrl), // 👈 Thay bằng URL thật khi triển khai
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer ${widget.token}',
-        },
-        body: jsonEncode({
-          'positionName': _nameController.text.trim(),
-        }),
-      );
+    final method = widget.position == null ? 'POST' : 'PUT';
+    final body = jsonEncode({
+      'positionName': _nameController.text.trim(),
+      'status': _status,
+    });
 
-      final data = jsonDecode(response.body);
+    final response = await (method == 'POST'
+        ? http.post(uri, headers: _headers(), body: body)
+        : http.put(uri, headers: _headers(), body: body));
 
-      if (response.statusCode == 201 && data['success'] == true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('✅ Thêm chức vụ thành công')),
-        );
-        Navigator.pop(context); // Quay lại trang trước
-      } else {
-        throw Exception(data['message'] ?? 'Thêm thất bại');
-      }
-    } catch (e) {
+    if (response.statusCode == 200 || response.statusCode == 201) {
+      Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('❌ Lỗi: $e')),
+        SnackBar(content: Text(widget.position == null ? '✅ Thêm thành công' : '✅ Cập nhật thành công')),
       );
-    } finally {
-      setState(() => _isLoading = false);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('❌ Thao tác thất bại')),
+      );
     }
   }
+
+  Map<String, String> _headers() => {
+    'Authorization': 'Bearer ${widget.token}',
+    'Content-Type': 'application/json',
+  };
 
   @override
   void dispose() {
@@ -64,7 +80,7 @@ class _AddPositionScreenState extends State<AddPositionScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Thêm chức vụ"),
+        title: Text(widget.position == null ? 'Thêm chức vụ' : 'Cập nhật chức vụ'),
         backgroundColor: Colors.orange,
         centerTitle: true,
         elevation: 3,
@@ -93,6 +109,8 @@ class _AddPositionScreenState extends State<AddPositionScreen> {
                   )
                 ],
               ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -140,6 +158,7 @@ class _AddPositionScreenState extends State<AddPositionScreen> {
                 ),
               ),
             ),
+            )
           ],
         ),
       ),
