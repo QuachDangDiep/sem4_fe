@@ -18,6 +18,7 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
   String? employeeId;
   List<DateTime> nextDays = [];
   Map<String, Set<String>> selectedShiftsPerDay = {};
+  Map<String, Set<String>> registeredShiftsPerDay = {};
   List<dynamic> shiftInfos = [];
   bool isLoading = true;
 
@@ -41,8 +42,8 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
 
       if (res.statusCode == 200) {
         employeeId = res.body.trim();
-        debugPrint("📌 Employee ID hiện tại: $employeeId");
         await _loadShiftInfos();
+        await _loadRegisteredShifts();
       }
     } catch (e) {
       debugPrint("Lỗi khi lấy employeeId: $e");
@@ -62,20 +63,40 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
       shiftInfos = data['result'].where((shift) {
         final name = (shift['name'] ?? '').toString().toLowerCase();
         final desc = (shift['description'] ?? '').toString().toLowerCase();
-        return name.contains('ot') || desc.contains('OT') || desc.contains('ngoài giờ');
+        return name.contains('ot') || desc.contains('ot') || desc.contains('ngoài giờ');
       }).toList();
 
-
-      List<DateTime> tempDays = [];
       final today = DateTime.now();
       for (int i = 0; i < 7; i++) {
         final date = today.add(Duration(days: i));
         final formatted = _formatDate(date);
-        tempDays.add(date);
+        nextDays.add(date);
         selectedShiftsPerDay[formatted] = {};
       }
-      nextDays = tempDays;
-      setState(() {});
+    }
+  }
+
+  Future<void> _loadRegisteredShifts() async {
+    final today = DateTime.now();
+    final toDate = today.add(Duration(days: 6));
+    final url = Constants.overtimeWorkSchedulesByStatusUrl(
+      employeeId: employeeId!,
+      status: '', // không truyền status để lấy cả Active + Inactive
+      fromDate: _formatDate(today),
+      toDate: _formatDate(toDate),
+    );
+
+    final res = await http.get(Uri.parse(url), headers: {
+      'Authorization': 'Bearer ${widget.token}',
+    });
+
+    if (res.statusCode == 200) {
+      final data = jsonDecode(res.body);
+      for (var item in data) {
+        final date = item['workDay'];
+        final shiftId = item['scheduleInfoId']; // ← SỬA ĐÚNG Ở ĐÂY
+        registeredShiftsPerDay.putIfAbsent(date, () => {}).add(shiftId);
+      }
     }
   }
 
@@ -100,27 +121,20 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
     selectedShiftsPerDay.forEach((date, shiftSet) {
       for (var shiftId in shiftSet) {
         final info = shiftInfos.firstWhere((e) => e['scheduleInfoId'] == shiftId);
-        final startTimeStr = info['defaultStartTime'];
-        final endTimeStr = info['defaultEndTime'];
+        final startParts = info['defaultStartTime'].split(':').map(int.parse).toList();
+        final endParts = info['defaultEndTime'].split(':').map(int.parse).toList();
 
-        try {
-          final startParts = startTimeStr.split(':').map(int.parse).toList();
-          final endParts = endTimeStr.split(':').map(int.parse).toList();
+        final startTime = "${startParts[0].toString().padLeft(2, '0')}:${startParts[1].toString().padLeft(2, '0')}:${startParts[2].toString().padLeft(2, '0')}";
+        final endTime = "${endParts[0].toString().padLeft(2, '0')}:${endParts[1].toString().padLeft(2, '0')}:${endParts[2].toString().padLeft(2, '0')}";
 
-          final startTime = "${startParts[0].toString().padLeft(2, '0')}:${startParts[1].toString().padLeft(2, '0')}:${startParts[2].toString().padLeft(2, '0')}";
-          final endTime = "${endParts[0].toString().padLeft(2, '0')}:${endParts[1].toString().padLeft(2, '0')}:${endParts[2].toString().padLeft(2, '0')}";
-
-          payload.add({
-            "employeeId": employeeId,
-            "scheduleInfoId": shiftId,
-            "workDay": date,
-            "startTime": startTime,
-            "endTime": endTime,
-            "shiftType": "OT"
-          });
-        } catch (e) {
-          debugPrint("Lỗi xử lý thời gian: $e");
-        }
+        payload.add({
+          "employeeId": employeeId,
+          "scheduleInfoId": shiftId,
+          "workDay": date,
+          "startTime": startTime,
+          "endTime": endTime,
+          "shiftType": "OT"
+        });
       }
     });
 
@@ -147,10 +161,7 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
           title: const Text("Đăng ký thành công"),
           content: const Text("Bạn đã đăng ký ca OT thành công. Bạn có muốn xem lịch làm việc không?"),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text("Để sau"),
-            ),
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text("Để sau")),
             TextButton(
               onPressed: () {
                 Navigator.pop(context);
@@ -199,6 +210,12 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         children: nextDays.map((date) {
           final formatted = _formatDate(date);
+          final registeredSet = registeredShiftsPerDay[formatted] ?? {};
+
+          final availableShifts = ([...shiftInfos]..sort((a, b) => a['defaultStartTime'].compareTo(b['defaultStartTime'])))
+              .where((shift) => !registeredSet.contains(shift['scheduleInfoId']))
+              .toList();
+
           return Card(
             elevation: 4,
             margin: const EdgeInsets.symmetric(vertical: 10),
@@ -210,41 +227,41 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
                 children: [
                   Text("Ngày $formatted", style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 12),
-                  Column(
-                    children: ([...shiftInfos]..sort((a, b) => a['defaultStartTime'].compareTo(b['defaultStartTime']))).map((shift) {
-                      final shiftId = shift['scheduleInfoId'];
-                      final shiftName = shift['name'];
-                      final start = _formatTime(shift['defaultStartTime']);
-                      final end = _formatTime(shift['defaultEndTime']);
-                      final isSelected = selectedShiftsPerDay[formatted]!.contains(shiftId);
+                  if (availableShifts.isEmpty)
+                    const Text("Đã đăng ký tất cả ca OT cho ngày này.", style: TextStyle(color: Colors.grey)),
+                  ...availableShifts.map((shift) {
+                    final shiftId = shift['scheduleInfoId'];
+                    final shiftName = shift['name'];
+                    final start = _formatTime(shift['defaultStartTime']);
+                    final end = _formatTime(shift['defaultEndTime']);
+                    final isSelected = selectedShiftsPerDay[formatted]!.contains(shiftId);
 
-                      return GestureDetector(
-                        onTap: () => _toggleShift(formatted, shiftId),
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                          decoration: BoxDecoration(
-                            color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFFF5F5F5),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade300, width: 1.2),
-                            boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2))],
-                          ),
-                          child: Row(
-                            children: [
-                              Icon(isSelected ? Icons.check_circle_outline : Icons.schedule, color: isSelected ? Colors.white : Colors.black87, size: 20),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  "$shiftName ($start - $end)",
-                                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isSelected ? Colors.white : Colors.black87),
-                                ),
-                              ),
-                            ],
-                          ),
+                    return GestureDetector(
+                      onTap: () => _toggleShift(formatted, shiftId),
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(vertical: 6),
+                        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFF4CAF50) : const Color(0xFFF5F5F5),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey.shade300, width: 1.2),
+                          boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4, offset: const Offset(0, 2))],
                         ),
-                      );
-                    }).toList(),
-                  ),
+                        child: Row(
+                          children: [
+                            Icon(isSelected ? Icons.check_circle_outline : Icons.schedule, color: isSelected ? Colors.white : Colors.black87),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                "$shiftName ($start - $end)",
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: isSelected ? Colors.white : Colors.black87),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
                 ],
               ),
             ),

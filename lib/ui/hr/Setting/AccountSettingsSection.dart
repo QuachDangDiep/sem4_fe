@@ -1,7 +1,11 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:jwt_decoder/jwt_decoder.dart';
+import 'package:sem4_fe/Service/Constants.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/ChangePasswordPage.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/Information.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 class AccountSettingsSection extends StatefulWidget {
   final String username;
@@ -18,6 +22,51 @@ class AccountSettingsSection extends StatefulWidget {
 }
 
 class _AccountSettingsSectionState extends State<AccountSettingsSection> {
+  Future<void> _navigateToPersonalInfo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token') ?? widget.token;
+
+      final decoded = JwtDecoder.decode(token);
+      final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
+      if (userId == null) throw Exception('Không tìm thấy userId trong token');
+
+      // Lấy employeeId từ userId
+      final idRes = await http.get(
+        Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (idRes.statusCode != 200) throw Exception('Không lấy được employeeId');
+
+      final employeeId = idRes.body.trim();
+
+      // Lấy employeeData
+      final infoRes = await http.get(
+        Uri.parse(Constants.employeeDetailUrl(employeeId)),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+      if (infoRes.statusCode != 200) throw Exception('Không lấy được thông tin nhân viên');
+
+      final employeeData = json.decode(infoRes.body);
+
+      // Điều hướng đến PersonalInfoScreen
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PersonalInfoScreen(
+            token: token,
+            employeeId: employeeId,
+            employeeData: employeeData,
+          ),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi khi mở thông tin cá nhân: ${e.toString()}')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -49,14 +98,7 @@ class _AccountSettingsSectionState extends State<AccountSettingsSection> {
                   style: TextStyle(fontWeight: FontWeight.w600),
                 ),
                 trailing: const Icon(Icons.arrow_forward_ios, size: 18),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PersonalInfoScreen(token: widget.token),
-                    ),
-                  );
-                },
+                onTap: _navigateToPersonalInfo,
               ),
             ),
             const SizedBox(height: 12),
@@ -75,7 +117,7 @@ class _AccountSettingsSectionState extends State<AccountSettingsSection> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => ChangePasswordPage(
-                        token: widget.token, // ✅ Chỉ truyền token
+                        token: widget.token,
                       ),
                     ),
                   );

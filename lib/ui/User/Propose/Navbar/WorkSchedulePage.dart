@@ -16,7 +16,6 @@ class WeeklyShiftSelectionScreenHistory extends StatefulWidget {
 
 class _WeeklyShiftSelectionScreenHistoryState extends State<WeeklyShiftSelectionScreenHistory> {
   String? employeeId;
-  List<dynamic> shiftInfos = [];
   List<dynamic> registeredSchedules = [];
   bool isLoading = true;
   DateTime _focusedDay = DateTime.now();
@@ -41,11 +40,11 @@ class _WeeklyShiftSelectionScreenHistoryState extends State<WeeklyShiftSelection
 
       if (res.statusCode == 200) {
         employeeId = res.body.trim();
-        debugPrint("📌 Employee ID hiện tại: $employeeId");
+        debugPrint("📌 Employee ID: $employeeId");
         await _loadRegisteredSchedules();
       }
     } catch (e) {
-      debugPrint("Lỗi khi lấy employeeId: $e");
+      debugPrint("❌ Lỗi khi lấy employeeId: $e");
     } finally {
       setState(() => isLoading = false);
     }
@@ -55,7 +54,11 @@ class _WeeklyShiftSelectionScreenHistoryState extends State<WeeklyShiftSelection
     if (employeeId == null) return;
     final fromStr = DateTime(2022).toIso8601String().split('T').first;
     final toStr = DateTime.now().add(const Duration(days: 365)).toIso8601String().split('T').first;
-    final url = Constants.workSchedulesByDateRangeUrl(employeeId: employeeId!, fromDate: fromStr, toDate: toStr);
+    final url = Constants.workSchedulesByDateRangeUrl(
+      employeeId: employeeId!,
+      fromDate: fromStr,
+      toDate: toStr,
+    );
 
     final res = await http.get(Uri.parse(url), headers: {'Authorization': 'Bearer ${widget.token}'});
     if (res.statusCode == 200) {
@@ -75,8 +78,15 @@ class _WeeklyShiftSelectionScreenHistoryState extends State<WeeklyShiftSelection
   }
 
   List<dynamic> _getEventsForDay(DateTime day) {
-    final dayStr = day.toIso8601String().split('T').first;
-    return registeredSchedules.where((e) => e['workDay'].startsWith(dayStr)).toList();
+    final result = registeredSchedules.where((e) {
+      final date = DateTime.tryParse(e['workDay']);
+      final isMatch = date != null && isSameDay(date, day);
+      if (isMatch) {
+        debugPrint("🎯 ${e['workDay']} | ${e['shiftType']} | ${e['status']}");
+      }
+      return isMatch;
+    }).toList();
+    return result;
   }
 
   @override
@@ -99,32 +109,43 @@ class _WeeklyShiftSelectionScreenHistoryState extends State<WeeklyShiftSelection
           calendarFormat: CalendarFormat.month,
           eventLoader: _getEventsForDay,
           calendarBuilders: CalendarBuilders(
-              markerBuilder: (context, date, events) {
-                if (events.isEmpty && (date.weekday == DateTime.saturday || date.weekday == DateTime.sunday)) {
-                  return const Center(
-                    child: Text('OFF', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                  );
-                } else if (events.isNotEmpty) {
-                  final isOT = events.any((event) {
-                    final e = event as Map<String, dynamic>;
-                    final shiftType = (e['shiftType']?.toString().toLowerCase() ?? '');
-                    final name = (e['scheduleInfoName']?.toString().toLowerCase() ?? '');
-                    return shiftType == 'overtime' || name.contains('ot');
-                  });
+            markerBuilder: (context, date, events) {
+              if (events.isEmpty && (date.weekday == DateTime.saturday || date.weekday == DateTime.sunday)) {
+                return const Center(
+                  child: Text('OFF', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                );
+              } else if (events.isNotEmpty) {
+                final hasNormal = events.any((event) {
+                  final e = event as Map<String, dynamic>;
+                  final type = (e['shiftType'] ?? e['scheduleInfoName'])?.toString().toLowerCase() ?? '';
+                  final status = e['status']?.toString().toLowerCase() ?? '';
+                  return type == 'normal' && status == 'active';
+                });
 
-                  return Align(
-                    alignment: Alignment.bottomCenter,
-                    child: Icon(
-                      isOT ? Icons.star : Icons.circle,
-                      color: isOT ? Colors.orange : Colors.green,
-                      size: 14,
-                    ),
-                  );
-                }
-                return null;
+                final hasApprovedOT = events.any((event) {
+                  final e = event as Map<String, dynamic>;
+                  final type = (e['shiftType'] ?? e['scheduleInfoName'])?.toString().toLowerCase() ?? '';
+                  final status = e['status']?.toString().toLowerCase() ?? '';
+                  return type == 'ot' && status == 'active';
+                });
+
+                return Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (hasNormal)
+                        const Icon(Icons.circle, color: Colors.green, size: 10),
+                      if (hasApprovedOT)
+                        const Icon(Icons.star, color: Colors.orange, size: 14),
+                    ],
+                  ),
+                );
               }
+              return null;
+            },
           ),
-              onDaySelected: (selectedDay, focusedDay) {
+          onDaySelected: (selectedDay, focusedDay) {
             setState(() => _focusedDay = focusedDay);
             final events = _getEventsForDay(selectedDay);
             if (events.isNotEmpty) {
@@ -134,13 +155,17 @@ class _WeeklyShiftSelectionScreenHistoryState extends State<WeeklyShiftSelection
                   title: const Text('Chi tiết ca làm'),
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: events.map((e) => ListTile(
-                      title: Text("Ca: ${e['scheduleInfoName'] ?? "Không rõ"}"),
-                      subtitle: Text("Giờ: ${_formatTime(e['startTime'] ?? e['defaultStartTime'])} - ${_formatTime(e['endTime'] ?? e['defaultEndTime'])}"),
-                      trailing: (e['shiftType'] == 'Overtime' || (e['scheduleInfoName'] ?? '').toString().toLowerCase().contains('ot'))
-                          ? const Icon(Icons.star, color: Colors.orange)
-                          : null,
-                    )).toList(),
+                    children: events.map((e) {
+                      final type = (e['shiftType'] ?? e['scheduleInfoName'])?.toString().toLowerCase() ?? '';
+                      final status = e['status']?.toString().toLowerCase() ?? '';
+                      final isOT = (type == 'ot') && status == 'active';
+
+                      return ListTile(
+                        title: Text("Ca: ${e['scheduleInfoName'] ?? "Không rõ"}"),
+                        subtitle: Text("Giờ: ${_formatTime(e['startTime'])} - ${_formatTime(e['endTime'])}"),
+                        trailing: isOT ? const Icon(Icons.star, color: Colors.orange) : null,
+                      );
+                    }).toList(),
                   ),
                   actions: [
                     TextButton(
@@ -157,7 +182,8 @@ class _WeeklyShiftSelectionScreenHistoryState extends State<WeeklyShiftSelection
     );
   }
 
-  String _formatTime(String timeStr) {
+  String _formatTime(String? timeStr) {
+    if (timeStr == null) return "--:--";
     try {
       final parts = timeStr.split(":");
       return "${parts[0]}:${parts[1]}";
