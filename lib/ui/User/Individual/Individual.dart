@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
@@ -9,12 +11,19 @@ import 'package:sem4_fe/ui/User/Individual/Navbar/ChangePasswordPage.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/histotyqr.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/MyLeaveScreen.dart';
 import 'package:sem4_fe/ui/login/Login.dart';
+import 'package:sem4_fe/Service/Constants.dart';
+import 'package:http/http.dart' as http;
+import 'package:jwt_decoder/jwt_decoder.dart';
 
 class PersonalPage extends StatelessWidget {
   const PersonalPage({Key? key}) : super(key: key);
 
-  Widget buildMenuItem(String title, IconData icon, VoidCallback onTap,
-      {Color? backgroundColor}) {
+  Widget buildMenuItem(
+    String title,
+    IconData icon,
+    VoidCallback onTap, {
+    Color? backgroundColor,
+  }) {
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: backgroundColor ?? Colors.blue,
@@ -44,73 +53,123 @@ class PersonalPage extends StatelessWidget {
             onPressed: () {
               showDialog(
                 context: context,
-                builder: (_) => AlertDialog(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  title: Row(
-                    children: const [
-                      Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                      SizedBox(width: 8),
-                      Text('Xác nhận đăng xuất'),
-                    ],
-                  ),
-                  content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng không?'),
-                  actionsPadding: const EdgeInsets.only(right: 12, bottom: 8),
-                  actions: [
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.grey[700],
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                builder:
+                    (_) => AlertDialog(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Hủy'),
-                    ),
-                    TextButton(
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        backgroundColor: Colors.orange,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      title: Row(
+                        children: const [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            color: Colors.orange,
+                          ),
+                          SizedBox(width: 8),
+                          Text('Xác nhận đăng xuất'),
+                        ],
                       ),
-                      onPressed: () {
-                        Navigator.pop(context);
-                        Navigator.pushReplacement(
-                          context,
-                          MaterialPageRoute(builder: (context) => LoginScreen()),
-                        );
-                      },
-                      child: const Text('Đăng xuất'),
+                      content: const Text(
+                        'Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng không?',
+                      ),
+                      actionsPadding: const EdgeInsets.only(
+                        right: 12,
+                        bottom: 8,
+                      ),
+                      actions: [
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.grey[700],
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('Hủy'),
+                        ),
+                        TextButton(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            backgroundColor: Colors.orange,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          onPressed: () {
+                            Navigator.pop(context);
+                            Navigator.pushReplacement(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => LoginScreen(),
+                              ),
+                            );
+                          },
+                          child: const Text('Đăng xuất'),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
               );
             },
-          )
+          ),
         ],
       ),
       body: ListView(
         children: [
           buildMenuItem('Thông tin cá nhân', Icons.person, () async {
             try {
-              // Lấy token từ SharedPreferences
               final prefs = await SharedPreferences.getInstance();
               final token = prefs.getString('auth_token');
 
               if (token == null || token.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Vui lòng đăng nhập lại')),
+                  const SnackBar(content: Text('Vui lòng đăng nhập lại')),
                 );
                 return;
               }
 
+              final decoded = JwtDecoder.decode(token);
+              final userId =
+                  decoded['userId']?.toString() ?? decoded['sub']?.toString();
+              if (userId == null)
+                throw Exception('Không tìm thấy userId trong token');
+
+              // Lấy employeeId từ userId
+              final idRes = await http.get(
+                Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
+                headers: {'Authorization': 'Bearer $token'},
+              );
+              if (idRes.statusCode != 200) {
+                throw Exception('Không thể lấy employeeId');
+              }
+
+              final employeeId = idRes.body.trim();
+
+              // Lấy employeeData
+              final infoRes = await http.get(
+                Uri.parse(Constants.employeeDetailUrl(employeeId)),
+                headers: {'Authorization': 'Bearer $token'},
+              );
+              if (infoRes.statusCode != 200) {
+                throw Exception('Không thể lấy thông tin nhân viên');
+              }
+
+              final employeeData = json.decode(infoRes.body);
+
+              // Mở trang thông tin cá nhân
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => PersonalInfoScreen(token: token),
+                  builder:
+                      (context) => PersonalInfoScreen(
+                        token: token,
+                        employeeId: employeeId,
+                        employeeData: employeeData,
+                      ),
                 ),
               );
             } catch (e) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text('Lỗi: ${e.toString()}')));
             }
           }, backgroundColor: Colors.orange),
           buildMenuItem('Lịch sử chấm công', Icons.history, () async {
@@ -128,12 +187,17 @@ class PersonalPage extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => AttendanceHistoryScreen(token: token), // Hoặc tên class đúng trong historyqr.dart
+                  builder:
+                      (context) => AttendanceHistoryScreen(
+                        token: token,
+                      ), // Hoặc tên class đúng trong historyqr.dart
                 ),
               );
             } catch (e) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Lỗi khi chuyển trang: ${e.toString()}')),
+                SnackBar(
+                  content: Text('Lỗi khi chuyển trang: ${e.toString()}'),
+                ),
               );
             }
           }, backgroundColor: Colors.blue),
@@ -142,7 +206,9 @@ class PersonalPage extends StatelessWidget {
             try {
               // Lấy token từ SharedPreferences
               final prefs = await SharedPreferences.getInstance();
-              final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
+              final token = prefs.getString(
+                'auth_token',
+              ); // 'auth_token' là key bạn dùng để lưu token
 
               if (token == null || token.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -159,7 +225,11 @@ class PersonalPage extends StatelessWidget {
               );
             } catch (e) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+                SnackBar(
+                  content: Text(
+                    'Lỗi khi lấy thông tin đăng nhập: ${e.toString()}',
+                  ),
+                ),
               );
             }
           }, backgroundColor: Colors.cyan),
@@ -167,7 +237,9 @@ class PersonalPage extends StatelessWidget {
             try {
               // Lấy token từ SharedPreferences
               final prefs = await SharedPreferences.getInstance();
-              final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
+              final token = prefs.getString(
+                'auth_token',
+              ); // 'auth_token' là key bạn dùng để lưu token
 
               if (token == null || token.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -184,16 +256,21 @@ class PersonalPage extends StatelessWidget {
               );
             } catch (e) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+                SnackBar(
+                  content: Text(
+                    'Lỗi khi lấy thông tin đăng nhập: ${e.toString()}',
+                  ),
+                ),
               );
             }
-          },
-              backgroundColor: Colors.lightBlue),
+          }, backgroundColor: Colors.lightBlue),
           buildMenuItem('Lịch sửa làm việc', Icons.description, () async {
             try {
               // Lấy token từ SharedPreferences
               final prefs = await SharedPreferences.getInstance();
-              final token = prefs.getString('auth_token'); // 'auth_token' là key bạn dùng để lưu token
+              final token = prefs.getString(
+                'auth_token',
+              ); // 'auth_token' là key bạn dùng để lưu token
 
               if (token == null || token.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -210,11 +287,14 @@ class PersonalPage extends StatelessWidget {
               );
             } catch (e) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+                SnackBar(
+                  content: Text(
+                    'Lỗi khi lấy thông tin đăng nhập: ${e.toString()}',
+                  ),
+                ),
               );
             }
-          },
-              backgroundColor: Colors.amber),
+          }, backgroundColor: Colors.amber),
           buildMenuItem('Đổi mật khẩu', Icons.vpn_key, () async {
             try {
               final prefs = await SharedPreferences.getInstance();
@@ -233,7 +313,9 @@ class PersonalPage extends StatelessWidget {
 
               if (userId == null) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Không tìm thấy userId trong token')),
+                  const SnackBar(
+                    content: Text('Không tìm thấy userId trong token'),
+                  ),
                 );
                 return;
               }
@@ -241,20 +323,22 @@ class PersonalPage extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) => ChangePasswordPage(token: token,),
+                  builder: (context) => ChangePasswordPage(token: token),
                 ),
               );
             } catch (e) {
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Lỗi khi lấy thông tin đăng nhập: ${e.toString()}')),
+                SnackBar(
+                  content: Text(
+                    'Lỗi khi lấy thông tin đăng nhập: ${e.toString()}',
+                  ),
+                ),
               );
             }
-          },
-              backgroundColor: Colors.teal),
+          }, backgroundColor: Colors.teal),
           const SizedBox(height: 20),
         ],
       ),
     );
   }
 }
-

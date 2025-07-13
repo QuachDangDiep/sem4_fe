@@ -3,7 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/LeaveRegistration.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/WorkSchedule.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/WorkSchedulePage.dart';
-import 'package:sem4_fe/ui/User/Propose/Navbar/ChangeShiftPage.dart';
+import 'package:sem4_fe/ui/User/Propose/Navbar/OvertimeTrackingPage.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/AttendanceAppealPage.dart';
 
 
@@ -100,25 +100,25 @@ class _ProposalPageState extends State<ProposalPage> {
                   WeeklyShiftSelectionScreenHistory(token: _token!),
             ),
           ),
-          // buildProposalItem(
-          //   'Đổi ca',
-          //   Icons.sync_alt,
-          //   Colors.green,
-          //       () {
-          //     if (_token == null || _token!.isEmpty) {
-          //       ScaffoldMessenger.of(context).showSnackBar(
-          //         const SnackBar(content: Text('Vui lòng đăng nhập lại')),
-          //       );
-          //       return;
-          //     }
-          //     Navigator.push(
-          //       context,
-          //       MaterialPageRoute(
-          //         builder: (_) => ChangeShiftPage(token: _token!),
-          //       ),
-          //     );
-          //   },
-          // ),
+          buildProposalItem(
+            'Theo dõi ca OT ',
+            Icons.sync_alt,
+            Colors.green,
+                () {
+              if (_token == null || _token!.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Vui lòng đăng nhập lại')),
+                );
+                return;
+              }
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => OvertimeTrackingPage(token: _token!),
+                ),
+              );
+            },
+          ),
           buildProposalItem(
             'Giải trình chấm công',
             Icons.report_problem,

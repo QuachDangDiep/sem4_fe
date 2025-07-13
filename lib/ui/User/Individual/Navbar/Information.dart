@@ -1,3 +1,4 @@
+// PersonalInfoScreen.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -8,10 +9,14 @@ import 'package:sem4_fe/ui/User/Individual/Navbar/UpdatePerson.dart';
 
 class PersonalInfoScreen extends StatefulWidget {
   final String token;
+  final String employeeId;
+  final Map<String, dynamic> employeeData;
 
   const PersonalInfoScreen({
     Key? key,
     required this.token,
+    required this.employeeId,
+    required this.employeeData,
   }) : super(key: key);
 
   @override
@@ -38,7 +43,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
       if (userId == null) throw Exception('Không tìm thấy userId trong token');
 
-      // Lấy employeeId từ userId
       final idRes = await http.get(
         Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
         headers: {'Authorization': 'Bearer $token'},
@@ -47,7 +51,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
 
       final employeeId = idRes.body.trim();
 
-      // Lấy thông tin chi tiết nhân viên
       final infoRes = await http.get(
         Uri.parse(Constants.employeeDetailUrl(employeeId)),
         headers: {'Authorization': 'Bearer $token'},
@@ -55,7 +58,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
       if (infoRes.statusCode != 200) throw Exception('Không lấy được thông tin nhân viên');
 
       final data = json.decode(infoRes.body);
-      data['token'] = token; // Truyền token qua màn Update
+      data['token'] = token;
 
       setState(() {
         _employeeInfo = Future.value(data);
@@ -66,9 +69,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
         _employeeInfo = Future.error('Lỗi khi lấy dữ liệu: ${e.toString()}');
       });
     } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -121,10 +122,14 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                         final result = await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => UpdatePersonalInfoScreen(employeeData: snapshot.data!),
+                            builder: (context) => UpdateEmployeeScreen(
+                              token: widget.token,
+                              employeeId: widget.employeeId,
+                              employeeData: widget.employeeData,
+                            ),
                           ),
                         );
-                        if (result == true) _fetchEmployeeInfo(); // Reload nếu có cập nhật
+                        if (result == true) _fetchEmployeeInfo();
                       },
                     ),
                 ],
@@ -158,15 +163,11 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
               'Trạng thái': employeeData['status'] ?? 'Không có thông tin',
             };
 
-            // Avatar
             final imgData = employeeData['img'] ?? '';
             ImageProvider avatarProvider;
-            if (imgData.toString().startsWith("data:image")) {
-              final base64Str = imgData.split(',').last;
-              avatarProvider = MemoryImage(base64Decode(base64Str));
-            } else if (imgData.toString().startsWith("http")) {
-              avatarProvider = NetworkImage(imgData);
-            } else {
+            try {
+              avatarProvider = MemoryImage(base64Decode(imgData));
+            } catch (e) {
               avatarProvider = const AssetImage('assets/images/avatar_placeholder.png');
             }
 
@@ -190,7 +191,6 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> {
                   style: TextStyle(color: Colors.grey[600]),
                 ),
                 const SizedBox(height: 16),
-
                 TabBar(
                   labelColor: Colors.orange,
                   unselectedLabelColor: Colors.grey,
