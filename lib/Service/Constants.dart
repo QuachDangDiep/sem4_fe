@@ -1,5 +1,5 @@
 class Constants {
-  static const String baseUrl = 'http://192.168.1.16:8080';
+  static const String baseUrl = 'http://172.20.10.2:8080';
 
   static const String loginUrl = '$baseUrl/api/auth/login';
   static const String homeUrl = '$baseUrl/api/users';

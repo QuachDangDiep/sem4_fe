@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:sem4_fe/Service/Constants.dart';
+import 'package:sem4_fe/ui/Hr/Timekeeping/Navbar/ApproveOvertimeScreen.dart';
 import 'package:sem4_fe/ui/Hr/Timekeeping/Navbar/Workschedulecreate.dart';
 
 class WorkScheduleInfoListScreen extends StatefulWidget {
@@ -106,92 +107,103 @@ class _WorkScheduleInfoListScreenState extends State<WorkScheduleInfoListScreen>
               final s = schedules[index];
               final isActive = s.status == 'Active';
 
-              return Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 6,
-                shadowColor: Colors.orange.withOpacity(0.3),
-                margin: const EdgeInsets.only(bottom: 14),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        radius: 28,
-                        backgroundColor: Colors.orange.shade50,
-                        child: const Icon(Icons.schedule, color: Colors.deepOrange, size: 28),
+              return InkWell(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => ApproveOvertimeScreen(token: widget.token)
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              s.name,
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.black87,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(16),
+                  child: Card(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    elevation: 6,
+                    shadowColor: Colors.orange.withOpacity(0.3),
+                    margin: const EdgeInsets.only(bottom: 14),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          CircleAvatar(
+                            radius: 28,
+                            backgroundColor: Colors.orange.shade50,
+                            child: const Icon(Icons.schedule, color: Colors.deepOrange, size: 28),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Icon(Icons.login, size: 16, color: Colors.orange),
-                                const SizedBox(width: 6),
-                                Text('Giờ vào: ${s.defaultStartTime}',
-                                    style: const TextStyle(fontSize: 14, color: Colors.black87)),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                const Icon(Icons.logout, size: 16, color: Colors.orange),
-                                const SizedBox(width: 6),
-                                Text('Giờ tan: ${s.defaultEndTime}',
-                                    style: const TextStyle(fontSize: 14, color: Colors.black87)),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            Row(
-                              children: [
-                                const Icon(Icons.description, size: 16, color: Colors.grey),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    s.description,
-                                    style: const TextStyle(fontSize: 13, color: Colors.black54),
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
+                                Text(
+                                  s.name,
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.login, size: 16, color: Colors.orange),
+                                    const SizedBox(width: 6),
+                                    Text('Giờ vào: ${s.defaultStartTime}',
+                                        style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.logout, size: 16, color: Colors.orange),
+                                    const SizedBox(width: 6),
+                                    Text('Giờ tan: ${s.defaultEndTime}',
+                                        style: const TextStyle(fontSize: 14, color: Colors.black87)),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.description, size: 16, color: Colors.grey),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        s.description,
+                                        style: const TextStyle(fontSize: 13, color: Colors.black54),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 8),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: isActive ? Colors.green.shade100 : Colors.red.shade100,
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Text(
+                                      isActive ? 'Đang hoạt động' : 'Ngưng hoạt động',
+                                      style: TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w600,
+                                        color: isActive ? Colors.green.shade800 : Colors.red.shade800,
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
-                            Align(
-                              alignment: Alignment.centerLeft,
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: isActive ? Colors.green.shade100 : Colors.red.shade100,
-                                  borderRadius: BorderRadius.circular(20),
-                                ),
-                                child: Text(
-                                  isActive ? 'Đang hoạt động' : 'Ngưng hoạt động',
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: isActive ? Colors.green.shade800 : Colors.red.shade800,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  )
               );
             },
           );

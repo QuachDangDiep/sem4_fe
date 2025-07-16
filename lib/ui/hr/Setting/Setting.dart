@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:sem4_fe/ui/login/Login.dart';
 import 'package:sem4_fe/ui/Hr/Setting/CompanyInfoSection.dart';
 import 'package:sem4_fe/ui/Hr/Setting/AccountSettingsSection.dart';
-import 'package:sem4_fe/ui/Hr/Setting/Navbar/DepartmentManagementPage.dart';
-import 'package:sem4_fe/ui/Hr/Setting/Navbar/PositionManagementPage.dart';
 import 'package:sem4_fe/ui/Hr/Setting/Navbar/HRWorkScheduleScreen.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/Attendance.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/histotyqr.dart';
+import 'package:sem4_fe/ui/User/Propose/Navbar/LeaveRegistration.dart';
 import 'package:sem4_fe/ui/Hr/Setting/Navbar/AttendanceManagementScreen.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/AttendanceAppealPage.dart';
 
@@ -35,11 +36,12 @@ class _HrSettingsPageState extends State<HrSettingsPage> {
   final List<SettingItem> settingItems = [
     SettingItem(Icons.business, 'Thông tin công ty'),
     SettingItem(Icons.person, 'Cài đặt tài khoản'),
-    SettingItem(Icons.apartment, 'Quản lý phòng ban'),
-    SettingItem(Icons.badge, 'Quản lý chức vụ'),
-    SettingItem(Icons.schedule, 'Quản lý chấm công'),       // Lịch làm việc, chấm công
-    SettingItem(Icons.edit_note, 'Giải trình chấm công'),   // Giải trình, ghi chú
-    SettingItem(Icons.info_outline, 'Thông tin ứng dụng'),  // Thông tin chung
+    SettingItem(Icons.schedule, 'Quản lý chấm công'),
+    SettingItem(Icons.apartment, 'Đơn xin nghỉ'),
+    SettingItem(Icons.table_chart, 'Bảng công'), // ✅ đổi icon phù hợp
+    SettingItem(Icons.history, 'Lịch sử chấm công'), // ✅ đổi icon phù hợp
+    SettingItem(Icons.edit_note, 'Giải trình chấm công'),
+    SettingItem(Icons.info_outline, 'Thông tin ứng dụng'),
   ];
 
   @override
@@ -124,17 +126,21 @@ class _HrSettingsPageState extends State<HrSettingsPage> {
                 if (item.title == 'Thông tin công ty') {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => CompanyInfoSection(username: widget.username, token: widget.token)));
                 } else if (item.title == 'Cài đặt tài khoản') {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => AccountSettingsSection(username: widget.username, token: widget.token)));
-                } else if (item.title == 'Quản lý phòng ban') {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => DepartmentListScreen(token: widget.token)));
-                } else if (item.title == 'Quản lý chức vụ') {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => PositionListScreen(token: widget.token)));
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => ApproveOvertimeScreen(token: widget.token)));
                 } else if (item.title == 'Danh sách đăng ký ca làm') {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => HRWorkScheduleScreen(token: widget.token)));
                 } else if (item.title == 'Quản lý chấm công') {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => AttendanceManagementScreen()));
-                  } else if (item.title == 'Giải trình chấm công') {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => AttendanceAppealPage(token: widget.token)));
+                  Navigator.push(context, MaterialPageRoute(
+                      builder: (_) => AttendanceManagementScreen()));
+                } else if (item.title == 'Giải trình chấm công') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) =>
+                      AttendanceAppealPage(token: widget.token)));
+                } else if (item.title.toLowerCase() == 'bảng công') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => AttendanceSummaryScreen(token: widget.token)));
+                } else if (item.title.toLowerCase() == 'lịch sử chấm công') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => AttendanceHistoryScreen(token: widget.token)));
+                } else if (item.title == 'Đơn xin nghỉ') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => LeaveRegistrationPage(token: widget.token)));
                 } else if (item.title == 'Thông tin ứng dụng') {
                   showDialog(
                     context: context,

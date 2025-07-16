@@ -181,7 +181,7 @@ class _LeaveRequestPageState extends State<LeaveRequestPage> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => AttendanceAppealScreen(token: widget.token),
+                  builder: (_) => HRAttendanceAppealScreen(token: widget.token),
                 ),
               );
             },
@@ -300,16 +300,15 @@ class _LeaveRequestPageState extends State<LeaveRequestPage> {
                         ),
                         const SizedBox(height: 8),
                         Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             const Icon(Icons.badge, color: Colors.deepPurple, size: 18),
                             const SizedBox(width: 8),
-                            Expanded(
+                            Expanded( // giúp tự động co dãn trong hàng ngang
                               child: Text(
                                 "Mã NV: ${request.employeeId}",
                                 style: const TextStyle(fontSize: 14, color: Colors.black87),
-                                overflow: TextOverflow.ellipsis,
-                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis, // ngăn tràn chữ
+                                maxLines: 1, // chỉ hiển thị 1 dòng
                               ),
                             ),
                           ],

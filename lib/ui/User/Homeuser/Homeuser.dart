@@ -1,15 +1,18 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
+import 'package:flutter/services.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'package:sem4_fe/ui/User/Individual/Individual.dart';
 import 'package:sem4_fe/ui/User/Notification/Notification.dart';
 import 'package:sem4_fe/ui/User/Propose/Propose.dart';
-import 'package:intl/intl.dart';
-import 'package:flutter/services.dart';
 import 'package:sem4_fe/ui/User/QR/Qrscanner.dart';
-import 'package:sem4_fe/Service/Constants.dart';
 import 'package:sem4_fe/ui/User/QR/Facecame.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/WorkHistory.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/histotyqr.dart';
+import 'package:sem4_fe/Service/Constants.dart';
+import 'package:sem4_fe/ui/User/Individual/Navbar/Information.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -38,13 +41,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String? avatarUrl;
   bool isLoadingAvatar = false;
   String? positionName;
-
   List<dynamic> workShifts = [];
 
   @override
   void initState() {
     super.initState();
-    // Thêm dòng này để bật chế độ edge-to-edge
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     fetchUserInfo();
     _loadAttendanceStatus();
@@ -53,33 +54,55 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadAvatar() async {
-    if (mounted) {
-      setState(() => isLoadingAvatar = true);
-    }
+    if (mounted) setState(() => isLoadingAvatar = true);
     try {
-      final url = await fetchEmployeeAvatar();
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('auth_token');
+      if (token == null) return;
 
-      if (mounted) {
-        setState(() {
-          avatarUrl = url;
-          isLoadingAvatar = false;
-        });
+      final decoded = JwtDecoder.decode(token);
+      final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
+      if (userId == null) return;
+
+      final employeeIdRes = await http.get(
+        Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (employeeIdRes.statusCode != 200) return;
+
+      final employeeId = employeeIdRes.body.trim();
+      await prefs.setString('employeeId', employeeId);
+
+      final detailRes = await http.get(
+        Uri.parse(Constants.employeeDetailUrl(employeeId)),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (detailRes.statusCode == 200) {
+        final data = json.decode(detailRes.body);
+        final base64Img = data['img']?.toString().trim() ?? '';
+
+        if (mounted) {
+          setState(() {
+            userData?['img'] = base64Img;
+            positionName = data['positionName'];
+            isLoadingAvatar = false;
+          });
+        }
       }
     } catch (e) {
-      if (mounted) {
-        setState(() => isLoadingAvatar = false);
-      }
-      print('Error loading avatar: $e');
+      print("❗ Lỗi avatar: $e");
+      if (mounted) setState(() => isLoadingAvatar = false);
     }
   }
 
   Future<void> _loadAttendanceStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    final currentDate = DateTime.now().toIso8601String().split('T')[0]; // YYYY-MM-DD
+    final currentDate = DateTime.now().toIso8601String().split('T')[0];
     final storedDate = prefs.getString('lastAttendanceDate');
 
     if (storedDate != currentDate) {
-      // New day, reset status
       await prefs.setBool('hasCheckedIn', false);
       await prefs.setBool('hasCheckedOut', false);
       await prefs.setString('lastAttendanceDate', currentDate);
@@ -89,7 +112,6 @@ class _HomeScreenState extends State<HomeScreen> {
         lastAttendanceDate = currentDate;
       });
     } else {
-      // Same day, load status
       setState(() {
         hasCheckedIn = prefs.getBool('hasCheckedIn') ?? false;
         hasCheckedOut = prefs.getBool('hasCheckedOut') ?? false;
@@ -122,11 +144,6 @@ class _HomeScreenState extends State<HomeScreen> {
             userData = user != null ? Map<String, dynamic>.from(user) : null;
             isLoading = false;
           });
-
-          print('Gọi API chức vụ với ID: ${userData!['positionId']}');
-          print('Dữ liệu trả về: $responseData');
-
-          print('userData: $userData');
         } else {
           throw Exception('Không có dữ liệu người dùng trong kết quả');
         }
@@ -149,62 +166,45 @@ class _HomeScreenState extends State<HomeScreen> {
       final token = prefs.getString('auth_token');
       if (token == null) return null;
 
-      // Kiểm tra xem đã có employeeId chưa
-      String? employeeId = prefs.getString('employeeId');
-      if (employeeId == null || employeeId.isEmpty) {
-        // Nếu chưa có thì lấy từ API
-        final decoded = JwtDecoder.decode(token);
-        final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
-        if (userId == null) return null;
+      final decoded = JwtDecoder.decode(token);
+      final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
+      if (userId == null) return null;
 
-        final employeeIdResponse = await http.get(
-          Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
-          headers: {'Authorization': 'Bearer $token'},
-        );
+      final employeeIdRes = await http.get(
+        Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
+        headers: {'Authorization': 'Bearer $token'},
+      );
 
-        if (employeeIdResponse.statusCode != 200) return null;
-        employeeId = employeeIdResponse.body.trim();
-        if (employeeId.isEmpty) return null;
-        await prefs.setString('employeeId', employeeId);
-      }
+      if (employeeIdRes.statusCode != 200) return null;
 
-      // Lấy thông tin chi tiết nhân viên
-      final employeeDetailResponse = await http.get(
+      final employeeId = employeeIdRes.body.trim();
+      if (employeeId.isEmpty) return null;
+
+      await prefs.setString('employeeId', employeeId);
+
+      final detailRes = await http.get(
         Uri.parse(Constants.employeeDetailUrl(employeeId)),
         headers: {'Authorization': 'Bearer $token'},
       );
 
-      if (employeeDetailResponse.statusCode == 200) {
-        final data = json.decode(employeeDetailResponse.body);
-        final imageUrl = data['img']?.toString();
-        print('Ảnh lấy được từ API: ${data['img']}');
+      if (detailRes.statusCode == 200) {
+        final data = json.decode(detailRes.body);
+        final img = (data['img'] ?? '').toString().trim();
+        final fullImgUrl = img.isNotEmpty
+            ? (img.startsWith('http') ? img : '${Constants.baseUrl}${img.startsWith('/') ? '' : '/'}$img')
+            : null;
 
         if (mounted) {
           setState(() {
-            avatarUrl = imageUrl != null && imageUrl.isNotEmpty
-                ? (!imageUrl.startsWith('http')
-                ? '${Constants.baseUrl}${imageUrl.startsWith('/') ? '' : '/'}$imageUrl'
-                : imageUrl)
-                : null;
-
-            positionName = data['positionName']; // 👈 LẤY Ở ĐÂY
+            avatarUrl = fullImgUrl;
+            positionName = data['positionName'];
           });
         }
-
-        print('Thông tin chi tiết nhân viên: $data');
-
-        // Kiểm tra và xử lý URL ảnh
-        if (imageUrl != null && imageUrl.isNotEmpty) {
-          // Xử lý URL tương đối (nếu cần)
-          if (!imageUrl.startsWith('http')) {
-            return '${Constants.baseUrl}${imageUrl.startsWith('/') ? '' : '/'}$imageUrl';
-          }
-          return imageUrl;
-        }
+        return fullImgUrl;
       }
       return null;
     } catch (e) {
-      print('Lỗi fetchEmployeeAvatar: $e');
+      print('❗ Lỗi khi fetch avatar: $e');
       return null;
     }
   }
@@ -226,13 +226,11 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    // Nếu có dữ liệu ca làm việc mới từ result, cập nhật
     if (result['shifts'] != null) {
       setState(() {
         workShifts = result['shifts'];
       });
     } else {
-      // Nếu không, gọi API fetch lại từ server
       await fetchWorkShifts();
     }
 
@@ -255,11 +253,8 @@ class _HomeScreenState extends State<HomeScreen> {
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
 
-        // Sắp xếp bản ghi theo thời gian giảm dần
-        data.sort((a, b) =>
-            DateTime.parse(b['scanTime']).compareTo(DateTime.parse(a['scanTime'])));
+        data.sort((a, b) => DateTime.parse(b['scanTime']).compareTo(DateTime.parse(a['scanTime'])));
 
-        // Lấy 2 bản ghi gần nhất: CheckIn & CheckOut
         Map<String, dynamic>? checkIn, checkOut;
         for (var record in data) {
           if (record['status'] == 'CheckIn' && checkIn == null) {
@@ -288,11 +283,66 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  ImageProvider _buildAvatarFromBase64(String? base64Str) {
+    if (base64Str == null || base64Str.isEmpty) {
+      return const AssetImage('assets/images/avatar_placeholder.png');
+    }
+    try {
+      return MemoryImage(base64Decode(base64Str));
+    } catch (e) {
+      print("Lỗi decode ảnh base64: $e");
+      return const AssetImage('assets/images/avatar_placeholder.png');
+    }
+  }
 
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
+  void _navigateToQRScanner() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => QRScannerScreen(token: widget.token),
+      ),
+    ).then((result) async {
+      if (result != null && result['status'] == 'success') {
+        await _handleCheckInResult(result);
+      }
     });
+  }
+
+  void _navigateToFaceAttendance() async {
+    if (hasCheckedIn && hasCheckedOut) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Bạn đã hoàn thành chấm công trong ngày hôm nay')),
+      );
+      return;
+    }
+
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => FaceAttendanceScreen(),
+      ),
+    );
+    if (result != null && result['status'] == 'success') {
+      await _handleCheckInResult(result);
+    }
+  }
+
+  void _navigateToWorkHistory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => WorkHistoryScreen(token: widget.token),
+      ),
+    );
+  }
+
+  void _navigateToAttendanceHistory() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AttendanceHistoryScreen(token: widget.token),
+      ),
+    );
   }
 
   void showCheckInOptions() {
@@ -416,36 +466,29 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _navigateToQRScanner() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => QRScannerScreen(token: widget.token),
-      ),
-    )..then((result) async {
-      if (result != null && result['status'] == 'success') {
-        await _handleCheckInResult(result);
-      }
-    });
-  }
-
-  void _navigateToFaceAttendance() async {
-    if (hasCheckedIn && hasCheckedOut) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Bạn đã hoàn thành chấm công trong ngày hôm nay')),
-      );
-      return;
-    }
-
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => FaceAttendanceScreen(),
+  Widget _quickActionButton({
+    required IconData icon,
+    required String label,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 28, color: Colors.orange),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          ],
+        ),
       ),
     );
-    if (result != null && result['status'] == 'success') {
-      await _handleCheckInResult(result);
-    }
   }
 
   Widget _buildHomePage() {
@@ -456,31 +499,22 @@ class _HomeScreenState extends State<HomeScreen> {
       return const Center(child: Text("Không tìm thấy người dùng"));
     }
 
-    final statusBarHeight = MediaQuery.of(context).padding.top;
-    final appBarHeight = kToolbarHeight + statusBarHeight;
-
     return Scaffold(
       body: Container(
         color: Colors.white,
+        padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 16, 16, 16),
         child: SingleChildScrollView(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            MediaQuery.of(context).padding.top + 16,
-            16,
-            16,
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 16),
               Row(
                 children: [
-                  // Trong _buildHomePage() của HomeScreen
-                  CircleAvatar(
-                    radius: 28,
-                    backgroundImage: avatarUrl != null && avatarUrl!.isNotEmpty
-                        ? NetworkImage(avatarUrl!)
-                        : const AssetImage('assets/avatar.jpg') as ImageProvider,
+                  GestureDetector(
+                    child: CircleAvatar(
+                      radius: 28,
+                      backgroundColor: Colors.grey.shade200,
+                      backgroundImage: _buildAvatarFromBase64(userData?['img']),
+                    ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -503,7 +537,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 4),
                         Text(
                           positionName ?? 'Cộng tác viên kinh doanh',
-                          style: TextStyle(fontSize: 14, color: Colors.grey),
+                          style: const TextStyle(fontSize: 14, color: Colors.grey),
                         ),
                       ],
                     ),
@@ -511,22 +545,19 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               const SizedBox(height: 24),
-              const SizedBox(height: 16),
               GestureDetector(
                 onTap: showCheckInOptions,
                 child: Container(
                   width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
                     color: Colors.orange,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  padding:
-                  const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                  child: Row(
+                  child: const Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: const [
-                      Icon(Icons.qr_code_scanner,
-                          color: Colors.white, size: 28),
+                    children: [
+                      Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
                       SizedBox(width: 12),
                       Text(
                         "Chấm công",
@@ -540,38 +571,28 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: hasCheckedIn && hasCheckedOut
-                      ? Colors.green.shade100
-                      : hasCheckedIn
-                      ? Colors.blue.shade100
-                      : Colors.red.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Text(
-                    hasCheckedIn && hasCheckedOut
-                        ? "Hôm nay bạn đã chấm công đầy đủ"
-                        : hasCheckedIn
-                        ? "Hôm nay bạn đã chấm công vào"
-                        : "Hôm nay bạn chưa chấm công",
-                    style: TextStyle(
-                      color: hasCheckedIn && hasCheckedOut
-                          ? Colors.green.shade800
-                          : hasCheckedIn
-                          ? Colors.blue.shade800
-                          : Colors.orange.shade800,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: _quickActionButton(
+                      icon: Icons.calendar_today,
+                      label: "Lịch làm việc",
+                      color: Colors.orange.shade100,
+                      onTap: _navigateToWorkHistory,
                     ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _quickActionButton(
+                      icon: Icons.history,
+                      label: "Lịch sử chấm công",
+                      color: Colors.orange.shade100,
+                      onTap: _navigateToAttendanceHistory,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 24),
             ],
           ),
         ),
@@ -586,40 +607,6 @@ class _HomeScreenState extends State<HomeScreen> {
         avatarUrl = url;
       });
     }
-  }
-
-  Widget _buildCheckInOption({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF5F5F5),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, size: 24, color: Colors.black87),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 
   @override
@@ -638,7 +625,7 @@ class _HomeScreenState extends State<HomeScreen> {
       bottomNavigationBar: BottomNavigationBar(
         backgroundColor: Colors.white,
         currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
+        onTap: (index) => setState(() => _selectedIndex = index),
         selectedItemColor: Colors.orange,
         unselectedItemColor: Colors.grey,
         type: BottomNavigationBarType.fixed,

@@ -194,10 +194,10 @@ class _WeeklyShiftSelectionScreenState extends State<WeeklyShiftSelectionScreen>
   @override
   Widget build(BuildContext context) {
     if (isLoading || shiftInfos.isEmpty || nextDays.isEmpty || employeeId == null) {
-      return Scaffold(
-        appBar: AppBar(title: const Text("Đăng ký OT", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white))),
-        body: const Center(child: CircularProgressIndicator()),
-      );
+      // return Scaffold(
+      //   appBar: AppBar(title: const Text("Đăng ký OT", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white))),
+      //   body: const Center(child: CircularProgressIndicator()),
+      // );
     }
 
     return Scaffold(
