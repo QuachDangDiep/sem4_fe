@@ -15,7 +15,6 @@ class ApproveOvertimeScreen extends StatefulWidget {
 class _ApproveOvertimeScreenState extends State<ApproveOvertimeScreen> {
   List<dynamic> schedules = [];
   bool isLoading = true;
-  String selectedType = 'OT'; // mặc định là OT
   String selectedStatus = 'Inactive';
 
   @override
@@ -52,7 +51,7 @@ class _ApproveOvertimeScreenState extends State<ApproveOvertimeScreen> {
 
       setState(() {
         schedules = list.where((e) {
-          final matchType = e['scheduleInfoName'] == selectedType;
+          final matchType = e['scheduleInfoName'] == 'OT';
           final matchStatus = selectedStatus == 'All' || e['status'] == selectedStatus;
           return matchType && matchStatus;
         }).toList();
@@ -126,48 +125,6 @@ class _ApproveOvertimeScreenState extends State<ApproveOvertimeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Loại ca:',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.black87,
-                        ),
-                      ),
-                      DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: selectedType,
-                          dropdownColor: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          icon: const Icon(Icons.arrow_drop_down, color: Colors.orange),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            color: Colors.black87,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          items: ['OT', 'Normal'].map((type) {
-                            return DropdownMenuItem(
-                              value: type,
-                              child: Text(type),
-                            );
-                          }).toList(),
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() {
-                                selectedType = value;
-                                isLoading = true;
-                              });
-                              fetchPendingOT();
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [

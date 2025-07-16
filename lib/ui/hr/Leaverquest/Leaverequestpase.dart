@@ -1,422 +1,411 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sem4_fe/Service/Constants.dart';
-import 'package:jwt_decoder/jwt_decoder.dart';
-import 'dart:convert';
+import 'package:sem4_fe/ui/Hr/Leaverquest/AttendanceAppeal.dart';
+import 'package:sem4_fe/ui/Hr/Staff/Narbar/StaffDetailScreen.dart';
 
-class LeaveRegistrationPage extends StatefulWidget {
-  final String token;
+class LeaveResponse {
+  final String requestId;
+  final String employeeId;
+  final String employeeName;
+  final DateTime leaveStartDate;
+  final DateTime leaveEndDate;
+  final String leaveType;
+  final String status;
+  final String activeStatus;
 
-  const LeaveRegistrationPage({
-    Key? key,
-    required this.token,
-  }) : super(key: key);
+  LeaveResponse({
+    required this.requestId,
+    required this.employeeId,
+    required this.employeeName,
+    required this.leaveStartDate,
+    required this.leaveEndDate,
+    required this.leaveType,
+    required this.status,
+    required this.activeStatus,
+  });
 
-  @override
-  _LeaveRegistrationPageState createState() => _LeaveRegistrationPageState();
+  factory LeaveResponse.fromJson(Map<String, dynamic> json, {String? employeeName}) {
+    return LeaveResponse(
+      requestId: json['leaveId']?.toString() ?? '',
+      employeeId: json['employeeId']?.toString() ?? '',
+      employeeName: employeeName ?? json['employeeName']?.toString() ?? 'Unknown',
+      leaveStartDate: DateTime.tryParse(json['leaveStartDate'].toString()) ?? DateTime.now(),
+      leaveEndDate: DateTime.tryParse(json['leaveEndDate'].toString()) ?? DateTime.now(),
+      leaveType: json['leaveType']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'Pending',
+      activeStatus: json['activeStatus']?.toString() ?? 'Active',
+    );
+  }
 }
 
-class _LeaveRegistrationPageState extends State<LeaveRegistrationPage> {
-  final _formKey = GlobalKey<FormState>();
-  DateTime? _selectedStartDate;
-  DateTime? _selectedEndDate;
-  String? _leaveType;
-  String _reason = '';
-  bool _isLoading = false;
-  String? _employeeId;
-  bool _fetchingEmployeeId = true;
-  final TextEditingController _reasonController = TextEditingController();
+class LeaveRequestPage extends StatefulWidget {
+  final String username;
+  final String token;
 
-  final Map<String, String> _leaveTypes = {
-    'SickLeave': 'Nghỉ ốm',
-    'AnnualLeave': 'Nghỉ phép',
-    'UnpaidLeave': 'Nghỉ không lương',
-    'Other': 'Nghỉ khác',
-  };
+  const LeaveRequestPage({super.key, required this.username, required this.token});
+
   @override
-  void initState() {
-    super.initState();
-    _fetchEmployeeId();
-    _leaveType = _leaveTypes.keys.first;
-  }
+  State<LeaveRequestPage> createState() => _LeaveRequestPageState();
+}
 
-  bool isValidJwtFormat(String token) {
-    final parts = token.split('.');
-    return parts.length == 3;
-  }
+class _LeaveRequestPageState extends State<LeaveRequestPage> {
+  final colors = [
+    const Color(0xFFFFE0B2),
+    const Color(0xFFFFA726),
+    const Color(0xFFFB8C00),
+    const Color(0xFFEF6C00),
+  ];
+  int _selectedIndex = 3; // Highlight "Đơn xin nghỉ"
 
-  Future<void> _fetchEmployeeId() async {
+  Future<String> fetchEmployeeName(String employeeId) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      if (token == null) throw Exception('Token không tồn tại');
-
-      final decoded = JwtDecoder.decode(token);
-      final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
-      if (userId == null) throw Exception('Không tìm thấy userId trong token');
-
-      final employeeResponse = await http.get(
-        Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
-        headers: {'Authorization': 'Bearer $token'},
-      );
-
-      if (employeeResponse.statusCode != 200) {
-        throw Exception('Không lấy được employeeId');
+      print('Fetching employee name for employeeId: $employeeId');
+      final response = await http.get(
+        Uri.parse(Constants.employeeDetailUrl(employeeId)),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+      ).timeout(const Duration(seconds: 10));
+      print('Employee name API response status: ${response.statusCode}');
+      print('Employee name API response body: ${response.body}');
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body);
+        return jsonData['data']?['fullName']?.toString() ??
+            jsonData['result']?['fullName']?.toString() ??
+            'Unknown';
       }
-
-      final id = employeeResponse.body.trim();
-      if (id.isEmpty) throw Exception('employeeId rỗng');
-
-      setState(() {
-        _employeeId = id;
-        _fetchingEmployeeId = false;
-      });
+      return 'Unknown';
     } catch (e) {
-      setState(() {
-        _employeeId = null;
-        _fetchingEmployeeId = false;
-      });
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Lỗi khi lấy employeeId: $e')),
-        );
-      }
+      print('Error fetching employee name for $employeeId: $e');
+      return 'Unknown';
     }
   }
 
-  Future<void> _submitLeaveRequest() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    if (_selectedStartDate == null || _selectedEndDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Vui lòng chọn ngày bắt đầu và kết thúc')),
-      );
-      return;
-    }
-
-    if (_employeeId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Không tìm thấy employeeId')),
-      );
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
+  Future<List<LeaveResponse>> fetchLeaveRequests() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final token = prefs.getString('auth_token');
-      if (token == null) throw Exception('Token không tồn tại');
-
-      final leaveResponse = await http.post(
+      print('Fetching leave requests from: http://10.0.2.2:8080/api/leaves');
+      final response = await http.get(
         Uri.parse(Constants.leaveRegistrationUrl),
         headers: {
-          'Authorization': 'Bearer $token',
+          'Authorization': 'Bearer ${widget.token}',
           'Content-Type': 'application/json',
         },
-        body: jsonEncode({
-          "employeeId": _employeeId,
-          "leaveStartDate": DateFormat('yyyy-MM-dd').format(_selectedStartDate!),
-          "leaveEndDate": DateFormat('yyyy-MM-dd').format(_selectedEndDate!),
-          "leaveType": _leaveType,
-          "reason": _reason,
-        }),
-      );
+      ).timeout(const Duration(seconds: 10));
 
-      if (!mounted) return;
+      print('Leave requests API response status: ${response.statusCode}');
+      print('Leave requests API response body: ${response.body}');
 
-      final leaveData = json.decode(leaveResponse.body);
-      if (leaveResponse.statusCode == 200 || leaveResponse.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(leaveData['message'] ?? 'Đăng ký nghỉ phép thành công')),
-        );
-        Navigator.pop(context, true);
+      if (response.statusCode == 200) {
+        final jsonData = jsonDecode(response.body);
+        final leaveList = jsonData['data'] ?? jsonData['result'] ?? jsonData['leaves'] ?? [];
+        if (leaveList is List) {
+          final leaveRequests = <LeaveResponse>[];
+          for (var item in leaveList) {
+            String? employeeName;
+            if (item['employeeName'] == null) {
+              employeeName = await fetchEmployeeName(item['employeeId']?.toString() ?? '');
+            }
+            leaveRequests.add(LeaveResponse.fromJson(item, employeeName: employeeName));
+          }
+          return leaveRequests..sort((a, b) => b.leaveStartDate.compareTo(a.leaveStartDate));
+        } else {
+          throw Exception('Dữ liệu không đúng định dạng danh sách: ${jsonData.runtimeType}, content: $jsonData');
+        }
       } else {
-        throw Exception(leaveData['message'] ?? 'Đăng ký nghỉ phép thất bại');
+        throw Exception('Lỗi khi tải dữ liệu đơn xin nghỉ: ${response.statusCode} - ${response.body}');
       }
     } catch (e) {
-      if (mounted) {
+      print('Error fetching leave requests: $e');
+      throw Exception('Lỗi khi tải dữ liệu đơn xin nghỉ: $e');
+    }
+  }
+
+  Future<void> updateLeaveRequestStatus(String requestId, String status) async {
+    try {
+      print('Updating leave request $requestId to status: $status');
+      final response = await http.put(
+        Uri.parse(Constants.leaveDetailUrl(requestId)),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'status': status}),
+      ).timeout(const Duration(seconds: 10));
+      print('PUT URL: ${Constants.leaveDetailUrl(requestId)}');
+      print('Update leave request API response status: ${response.statusCode}');
+      print('Update leave request API response body: ${response.body}');
+
+      if (response.statusCode == 200) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('❌ Lỗi khi gửi đơn nghỉ phép: $e')),
+          const SnackBar(content: Text('Cập nhật trạng thái đơn xin nghỉ thành công')),
         );
+        setState(() {}); // Refresh the list
+      } else {
+        throw Exception('Lỗi khi cập nhật trạng thái: ${response.statusCode} - ${response.body}');
       }
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+    } catch (e) {
+      print('Error updating leave request: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Lỗi khi cập nhật trạng thái: $e')),
+      );
     }
-  }
-
-
-  Future<void> _selectStartDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedStartDate ?? DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(DateTime.now().year + 1),
-      builder: (BuildContext context, Widget? child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Colors.orange, // màu cam cho AppBar và ngày được chọn
-              onPrimary: Colors.white, // màu chữ trắng trên AppBar
-              onSurface: Colors.black, // màu chữ ngày thường
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(foregroundColor: Colors.orange), // nút "OK", "HỦY"
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null && picked != _selectedStartDate) {
-      setState(() {
-        _selectedStartDate = picked;
-        if (_selectedEndDate != null && _selectedEndDate!.isBefore(picked)) {
-          _selectedEndDate = null;
-        }
-      });
-    }
-  }
-
-  Future<void> _selectEndDate(BuildContext context) async {
-    if (_selectedStartDate == null) return;
-
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedEndDate ?? _selectedStartDate!,
-      firstDate: _selectedStartDate!,
-      lastDate: DateTime(DateTime.now().year + 1),
-      builder: (BuildContext context, Widget? child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Colors.orange,
-              onPrimary: Colors.white,
-              onSurface: Colors.black,
-            ),
-            textButtonTheme: TextButtonThemeData(
-              style: TextButton.styleFrom(foregroundColor: Colors.orange),
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null && picked != _selectedEndDate) {
-      setState(() {
-        _selectedEndDate = picked;
-      });
-    }
-  }
-  @override
-  void dispose() {
-    _reasonController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_fetchingEmployeeId) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Đăng ký nghỉ phép',style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-            color: Colors.white,
-          ),),
-          centerTitle: true,
-          backgroundColor: Colors.orange,
-        ),
-        body: const Center(child: CircularProgressIndicator()),
-      );
-    }
-
-    if (_employeeId == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Đăng ký nghỉ phép'),
-          backgroundColor: Colors.orange,
-        ),
-        body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text('Không thể lấy thông tin nhân viên'),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: _fetchEmployeeId,
-                child: const Text('Thử lại'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange,
-                  padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 15),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Đăng ký nghỉ phép',style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 20,
-          color: Colors.white,
-        ),),
+        backgroundColor: colors[1],
+        elevation: 2,
         centerTitle: true,
-        backgroundColor: Colors.orange,
-      ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Loại nghỉ
-              const Text('Loại nghỉ:',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold)),
-              DropdownButtonFormField<String>(
-                value: _leaveType != null && _leaveTypes.containsKey(_leaveType!)
-                    ? _leaveType
-                    : null,
-                items: _leaveTypes.entries.map((entry) {
-                  return DropdownMenuItem<String>(
-                    value: entry.key,
-                    child: Text(entry.value),
-                  );
-                }).toList(),
-                onChanged: (newValue) {
-                  setState(() {
-                    _leaveType = newValue!;
-                  });
-                },
-                validator: (value) => value == null ? 'Vui lòng chọn loại nghỉ' : null,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.amber, width: 2),
-                  ),
-                  contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Ngày bắt đầu
-              const Text('Ngày bắt đầu:',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold)),
-              InkWell(
-                onTap: () => _selectStartDate(context),
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.amber, width: 2),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _selectedStartDate != null
-                            ? DateFormat('dd/MM/yyyy')
-                            .format(_selectedStartDate!)
-                            : 'Chọn ngày bắt đầu',
-                      ),
-                      const Icon(Icons.calendar_today),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Ngày kết thúc
-              const Text('Ngày kết thúc:',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold)),
-              InkWell(
-                onTap: _selectedStartDate == null
-                    ? null
-                    : () => _selectEndDate(context),
-                child: InputDecorator(
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    focusedBorder: OutlineInputBorder(
-                      borderSide: BorderSide(color: Colors.amber, width: 2),
-                    ),
-                    contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _selectedEndDate != null
-                            ? DateFormat('dd/MM/yyyy')
-                            .format(_selectedEndDate!)
-                            : 'Chọn ngày kết thúc',
-                      ),
-                      const Icon(Icons.calendar_today),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              // Lý do
-              const Text('Lý do:',
-                  style: TextStyle(
-                      fontSize: 16, fontWeight: FontWeight.bold)),
-              TextFormField(
-                controller: _reasonController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  focusedBorder: OutlineInputBorder(
-                    borderSide: BorderSide(color: Colors.amber, width: 2),
-                  ),
-                  hintText: 'Nhập lý do nghỉ...',
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Vui lòng nhập lý do nghỉ';
-                  }
-                  return null;
-                },
-                onChanged: (value) {
-                  setState(() {
-                    _reason = value;
-                  });
-                },
-              ),
-              const SizedBox(height: 30),
-
-              // Nút gửi
-              Center(
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _submitLeaveRequest,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.orange,
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-                  ),
-                  child: const Text(
-                    'Gửi đơn',
-                    style: TextStyle(fontSize: 18, color: Colors.white),
-                  ),
-                ),
-              ),
-            ],
+        title: const Text(
+          'Quản lý đơn xin nghỉ',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+            fontSize: 18,
           ),
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.assignment_late), // biểu tượng giải trình
+            tooltip: 'Giải trình chấm công',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => HRAttendanceAppealScreen(token: widget.token),
+                ),
+              );
+            },
+          ),
+        ],
+      ),
+      body: FutureBuilder<List<LeaveResponse>>(
+        future: fetchLeaveRequests(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            print('Leave requests fetch error: ${snapshot.error}');
+            return Center(
+              child: Text(
+                'Lỗi: ${snapshot.error}',
+                style: TextStyle(color: colors[2], fontSize: 16),
+              ),
+            );
+          }
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return Center(
+              child: Text(
+                'Chưa có đơn xin nghỉ nào',
+                style: TextStyle(color: colors[2], fontSize: 16),
+              ),
+            );
+          }
+
+          final requests = snapshot.data!;
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            itemCount: requests.length,
+            itemBuilder: (context, index) {
+              final request = requests[index];
+              return Card(
+                elevation: 3,
+                color: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  side: BorderSide(color: Colors.grey.shade200, width: 1),
+                ),
+                margin: const EdgeInsets.symmetric(vertical: 10),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () async {
+                    try {
+                      final response = await http.get(
+                        Uri.parse('${Constants.baseUrl}/api/employees/${request.employeeId}'),
+                        headers: {
+                          'Authorization': 'Bearer ${widget.token}',
+                          'Content-Type': 'application/json',
+                        },
+                      );
+
+                      if (response.statusCode == 200) {
+                        final data = jsonDecode(response.body);
+                        print("Response body: $data"); // <- THÊM DÒNG NÀY
+                        final user = data; // <- SỬA Ở ĐÂY
+
+                        if (user == null) {
+                          throw Exception("Không tìm thấy dữ liệu nhân viên trong phản hồi API.");
+                        }
+
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => StaffDetailScreen(
+                              token: widget.token,
+                              employeeId: request.employeeId,
+                              fullName: user['fullName'] ?? '',
+                              status: user['status'] ?? '',
+                              image: user['image'] ?? '',
+                              positionName: user['positionName'] ?? '',
+                              departmentName: user['departmentName'] ?? '',
+                              gender: user['gender'] ?? '',
+                              phone: user['phone'] ?? '',
+                              address: user['address'] ?? '',
+                              dateOfBirth: user['dateOfBirth'] ?? '',
+                              hireDate: user['hireDate'] ?? '',
+                            ),
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Lỗi API nhân viên: ${response.statusCode}')),
+                        );
+                      }
+                    } catch (e) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Lỗi khi tải thông tin nhân viên: $e')),
+                      );
+                    }
+                  },
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Icon(Icons.person, color: Colors.orange, size: 24),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                request.employeeName,
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.badge, color: Colors.deepPurple, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded( // giúp tự động co dãn trong hàng ngang
+                              child: Text(
+                                "Mã NV: ${request.employeeId}",
+                                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                                overflow: TextOverflow.ellipsis, // ngăn tràn chữ
+                                maxLines: 1, // chỉ hiển thị 1 dòng
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                            children: [
+                              const Icon(Icons.category, color: Colors.teal, size: 18),
+                              const SizedBox(width: 8),
+                              Text(
+                                "Loại nghỉ: ${request.leaveType}",
+                                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                              ),
+                            ]
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.calendar_month, color: Colors.green, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Bắt đầu: ${DateFormat('dd/MM/yyyy').format(request.leaveStartDate)}",
+                              style: const TextStyle(fontSize: 14, color: Colors.black87),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            const Icon(Icons.calendar_today, color: Colors.red, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Kết thúc: ${DateFormat('dd/MM/yyyy').format(request.leaveEndDate)}",
+                              style: const TextStyle(fontSize: 14, color: Colors.black87),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: request.status == 'Approved'
+                                ? Colors.green.shade100
+                                : request.status == 'Rejected'
+                                ? Colors.red.shade100
+                                : Colors.orange.shade100,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            request.status,
+                            style: TextStyle(
+                              color: request.status == 'Approved'
+                                  ? Colors.green
+                                  : request.status == 'Rejected'
+                                  ? Colors.red
+                                  : Colors.orange,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        if (request.status == 'Pending')
+                          Padding(
+                            padding: const EdgeInsets.only(top: 12),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              children: [
+                                ElevatedButton.icon(
+                                  onPressed: () => updateLeaveRequestStatus(request.requestId, 'Approved'),
+                                  icon: const Icon(Icons.check, color: Colors.white),
+                                  label: const Text('Duyệt'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                  ),
+                                ),
+                                ElevatedButton.icon(
+                                  onPressed: () => updateLeaveRequestStatus(request.requestId, 'Rejected'),
+                                  icon: const Icon(Icons.close, color: Colors.white),
+                                  label: const Text('Từ chối'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
       ),
     );
   }

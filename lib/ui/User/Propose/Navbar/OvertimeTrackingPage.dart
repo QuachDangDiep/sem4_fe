@@ -110,6 +110,23 @@ class _OvertimeTrackingPageState extends State<OvertimeTrackingPage> {
       context: context,
       firstDate: DateTime(2023),
       lastDate: DateTime(2026),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Colors.orange, // màu nút, viền
+              onPrimary: Colors.white, // chữ trên nút
+              onSurface: Colors.black, // chữ ngày
+            ),
+            textButtonTheme: TextButtonThemeData(
+              style: TextButton.styleFrom(
+                foregroundColor: Colors.orange, // nút cancel/save
+              ),
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
 
     if (picked != null) {
@@ -139,51 +156,96 @@ class _OvertimeTrackingPageState extends State<OvertimeTrackingPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Theo dõi ca OT')),
+      appBar: AppBar(
+        title: const Text('Theo dõi ca OT'),
+        centerTitle: true,
+        backgroundColor: Colors.orange,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Dropdown trạng thái
+            // Trạng thái
             Row(
               children: [
-                const Text("Trạng thái: "),
-                const SizedBox(width: 10),
-                DropdownButton<String>(
-                  value: _selectedFilter,
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() {
-                        _selectedFilter = val;
-                      });
-                      _fetchOT(); // fetch ngay khi đổi
-                    }
-                  },
-                  items: ['Tất cả', 'Active', 'Inactive']
-                      .map((status) => DropdownMenuItem(
-                    value: status,
-                    child: Text(status),
-                  ))
-                      .toList(),
+                const Text(
+                  "Trạng thái:",
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                 ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            // Chọn khoảng ngày
-            Row(
-              children: [
-                ElevatedButton(
-                  onPressed: _selectDateRange,
-                  child: Text(
-                    _fromDate == null || _toDate == null
-                        ? 'Chọn khoảng ngày'
-                        : '${DateFormat('dd/MM/yyyy').format(_fromDate!)} - ${DateFormat('dd/MM/yyyy').format(_toDate!)}',
+                const SizedBox(width: 10),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.orange),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _selectedFilter,
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedFilter = val;
+                          });
+                          _fetchOT();
+                        }
+                      },
+                      items: ['Tất cả', 'Active', 'Inactive'].map((status) {
+                        Color color;
+                        if (status == 'Tất cả') {
+                          color = Colors.black;
+                        } else if (status == 'Active') {
+                          color = Colors.green;
+                        } else {
+                          color = Colors.red;
+                        }
+
+                        return DropdownMenuItem<String>(
+                          value: status,
+                          child: Text(
+                            status,
+                            style: TextStyle(
+                              color: color,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+
+            // Nút chọn khoảng ngày
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: _selectDateRange,
+                icon: const Icon(Icons.calendar_month),
+                label: Text(
+                  _fromDate == null || _toDate == null
+                      ? 'Chọn khoảng ngày'
+                      : '${DateFormat('dd/MM/yyyy').format(_fromDate!)} - ${DateFormat('dd/MM/yyyy').format(_toDate!)}',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+
             const SizedBox(height: 20),
-            // Lịch + danh sách OT
+
+            // Lịch + danh sách
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -202,9 +264,7 @@ class _OvertimeTrackingPageState extends State<OvertimeTrackingPage> {
                     },
                     calendarFormat: _calendarFormat,
                     onFormatChanged: (format) {
-                      setState(() {
-                        _calendarFormat = format;
-                      });
+                      setState(() => _calendarFormat = format);
                     },
                     eventLoader: _getEventsForDay,
                     calendarBuilders: CalendarBuilders(
@@ -216,7 +276,6 @@ class _OvertimeTrackingPageState extends State<OvertimeTrackingPage> {
                           children: events.map<Widget>((event) {
                             final status = (event as Map<String, dynamic>)['status'];
                             Color color;
-
                             if (status == 'Active') {
                               color = Colors.green;
                             } else if (status == 'Inactive') {
@@ -224,10 +283,9 @@ class _OvertimeTrackingPageState extends State<OvertimeTrackingPage> {
                             } else {
                               color = Colors.grey;
                             }
-
                             return Container(
-                              width: 7,
-                              height: 7,
+                              width: 6,
+                              height: 6,
                               margin: const EdgeInsets.symmetric(horizontal: 0.5),
                               decoration: BoxDecoration(
                                 color: color,
@@ -240,9 +298,16 @@ class _OvertimeTrackingPageState extends State<OvertimeTrackingPage> {
                     ),
                   ),
                   const SizedBox(height: 10),
+
+                  // Danh sách OT
                   Expanded(
                     child: _otList.isEmpty
-                        ? const Center(child: Text('Không có ca OT nào'))
+                        ? const Center(
+                      child: Text(
+                        'Không có ca OT nào',
+                        style: TextStyle(fontSize: 16),
+                      ),
+                    )
                         : ListView.builder(
                       itemCount: _otList.length,
                       itemBuilder: (context, index) {
@@ -251,30 +316,36 @@ class _OvertimeTrackingPageState extends State<OvertimeTrackingPage> {
                         final status = ot['status'] ?? '';
                         final start = _formatTime(ot['scheduleStartTime']);
                         final end = _formatTime(ot['scheduleEndTime']);
-
                         final isActive = status == 'Active';
 
-                        return Container(
-                          margin: const EdgeInsets.symmetric(vertical: 6),
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: isActive ? Colors.green.shade50 : Colors.red.shade50,
-                            border: Border.all(
-                              color: isActive ? Colors.green : Colors.red,
-                              width: 1,
-                            ),
-                            borderRadius: BorderRadius.circular(8),
+                        return Card(
+                          elevation: 2,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
+                          color: isActive ? Colors.green.shade50 : Colors.red.shade50,
+                          margin: const EdgeInsets.symmetric(vertical: 6),
                           child: ListTile(
                             leading: Icon(
                               isActive ? Icons.check_circle : Icons.cancel,
                               color: isActive ? Colors.green : Colors.red,
                             ),
-                            title: Text(
-                              '$date - $status',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isActive ? Colors.green[800] : Colors.red[800],
+                            title: RichText(
+                              text: TextSpan(
+                                style: DefaultTextStyle.of(context).style.copyWith(fontWeight: FontWeight.w600),
+                                children: [
+                                  TextSpan(text: '$date - '),
+                                  TextSpan(
+                                    text: status,
+                                    style: TextStyle(
+                                      color: status == 'Active'
+                                          ? Colors.green
+                                          : status == 'Inactive'
+                                          ? Colors.red
+                                          : Colors.grey,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
                             subtitle: Text(

@@ -39,6 +39,13 @@ class AttendanceService {
 
   AttendanceService({required this.token});
 
+  Map<String, String> _buildHeaders() {
+    return {
+      'Authorization': 'Bearer $token',
+      'Content-Type': 'application/json',
+    };
+  }
+
   Future<List<Attendance>> getAttendancesByEmployeeAndDateRange({
     required String employeeId,
     required String fromDate,
@@ -61,21 +68,128 @@ class AttendanceService {
     throw Exception('Không thể tải danh sách chấm công theo điều kiện');
   }
 
-  Map<String, String> _buildHeaders() {
-    return {
-      'Authorization': 'Bearer $token',
-      'Content-Type': 'application/json',
-    };
+  Future<int> getTotalWorkingDays({
+    required String employeeId,
+    required String fromDate,
+    required String toDate,
+  }) async {
+    final url = Constants.filterAttendancesUrlWithStatus(
+      employeeId: employeeId,
+      fromDate: fromDate,
+      toDate: toDate,
+    );
+
+    final res = await http.get(Uri.parse(url), headers: _buildHeaders());
+
+    if (res.statusCode == 200) {
+      final List list = json.decode(res.body);
+
+      // Nhóm theo ngày chấm công
+      final Map<String, List<dynamic>> groupedByDate = {};
+
+      for (var item in list) {
+        final date = item['attendanceDate'];
+        if (date == null) continue;
+        groupedByDate.putIfAbsent(date, () => []).add(item);
+      }
+
+      int count = 0;
+
+      for (var entry in groupedByDate.entries) {
+        final records = entry.value;
+
+        // Nếu trong ngày có ÍT NHẤT 1 bản ghi KHÔNG phải Absent thì tính là 1 ngày công
+        final hasValidStatus = records.any((r) {
+          final status = r['status']?.toString().toLowerCase();
+          return status != 'absent';
+        });
+
+        if (hasValidStatus) count++;
+      }
+
+      return count;
+    }
+
+    throw Exception('Không thể lấy số ngày chấm công');
+  }
+
+
+  Future<int> getTotalOvertimeDays({
+    required String employeeId,
+    required String fromDate,
+    required String toDate,
+  }) async {
+    final url = Constants.overtimeWorkSchedulesByStatusUrl(
+      employeeId: employeeId,
+      fromDate: fromDate,
+      toDate: toDate,
+      status: 'Active',
+    );
+
+    final res = await http.get(Uri.parse(url), headers: _buildHeaders());
+    if (res.statusCode == 200) {
+      final List list = json.decode(res.body);
+      return list.length;
+    }
+    throw Exception('Không thể lấy số ngày OT');
+  }
+
+  Future<int> getTotalLeaveDays({
+    required String employeeId,
+    required String fromDate,
+    required String toDate,
+  }) async {
+    final url = Constants.leavesByEmployeeUrl(
+      employeeId: employeeId,
+      status: 'Approved',
+    );
+
+    final res = await http.get(Uri.parse(url), headers: _buildHeaders());
+    if (res.statusCode == 200) {
+      final List data = json.decode(res.body);
+      final from = DateTime.parse(fromDate);
+      final to = DateTime.parse(toDate);
+
+      final filtered = data.where((e) {
+        final fromStr = e['leaveStartDate']?.toString();
+        final toStr = e['leaveEndDate']?.toString();
+
+        if (fromStr == null || toStr == null) return false;
+
+        final leaveFrom = DateTime.tryParse(fromStr);
+        final leaveTo = DateTime.tryParse(toStr);
+
+        if (leaveFrom == null || leaveTo == null) return false;
+
+        return leaveFrom.isBefore(to.add(const Duration(days: 1))) &&
+            leaveTo.isAfter(from.subtract(const Duration(days: 1)));
+      }).toList();
+
+      int totalLeaveDays = 0;
+      for (var leave in filtered) {
+        final start = DateTime.parse(leave['leaveStartDate']);
+        final end = DateTime.parse(leave['leaveEndDate']);
+        final rangeStart = start.isBefore(from) ? from : start;
+        final rangeEnd = end.isAfter(to) ? to : end;
+        totalLeaveDays += rangeEnd.difference(rangeStart).inDays + 1;
+      }
+      return totalLeaveDays;
+
+
+    }
+    throw Exception('Không thể lấy số ngày nghỉ phép');
   }
 }
 
 class AttendanceSummaryScreen extends StatefulWidget {
   final String token;
 
-  const AttendanceSummaryScreen({Key? key, required this.token}) : super(key: key);
+  const AttendanceSummaryScreen({Key? key, required this.token})
+    : super(key: key);
 
   @override
-  _AttendanceSummaryScreenState createState() => _AttendanceSummaryScreenState();
+  _AttendanceSummaryScreenState createState() =>
+      _AttendanceSummaryScreenState();
 }
 
 class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
@@ -86,16 +200,20 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
   DateTime fromDate = DateTime.now().subtract(const Duration(days: 7));
   DateTime toDate = DateTime.now();
 
+  int _workingDays = 0;
+  int _overtimeDays = 0;
+  int _leaveDays = 0;
+
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _service = AttendanceService(token: widget.token);
-    _fetchEmployeeIdAndLoadAttendances();
+    _fetchEmployeeIdAndLoadData();
   }
 
-  Future<void> _fetchEmployeeIdAndLoadAttendances() async {
+  Future<void> _fetchEmployeeIdAndLoadData() async {
     setState(() => _isLoading = true);
     try {
       final parts = widget.token.split('.');
@@ -111,6 +229,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
       if (res.statusCode == 200) {
         employeeId = res.body.trim();
         await _loadAttendances();
+        await _loadSummaryInDateRange();
       } else {
         _showError('Không thể lấy employeeId từ server');
       }
@@ -143,6 +262,41 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
     }
   }
 
+  Future<void> _loadSummaryInDateRange() async {
+    if (employeeId == null) return;
+
+    final formattedFrom = DateFormat('yyyy-MM-dd').format(fromDate);
+    final formattedTo = DateFormat('yyyy-MM-dd').format(toDate);
+
+    try {
+      final working = await _service.getTotalWorkingDays(
+        employeeId: employeeId!,
+        fromDate: formattedFrom,
+        toDate: formattedTo,
+      );
+
+      final ot = await _service.getTotalOvertimeDays(
+        employeeId: employeeId!,
+        fromDate: formattedFrom,
+        toDate: formattedTo,
+      );
+
+      final leave = await _service.getTotalLeaveDays(
+        employeeId: employeeId!,
+        fromDate: formattedFrom,
+        toDate: formattedTo,
+      );
+
+      setState(() {
+        _workingDays = working;
+        _overtimeDays = ot;
+        _leaveDays = leave;
+      });
+    } catch (e) {
+      _showError("❌ Lỗi khi tải tổng hợp: ${e.toString()}");
+    }
+  }
+
   Future<void> _exportToExcel() async {
     setState(() => _isLoading = true);
     try {
@@ -159,7 +313,9 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
       for (var i = 0; i < _attendances.length; i++) {
         final att = _attendances[i];
         sheet.getRangeByIndex(i + 3, 1).setText(att.employeeId);
-        sheet.getRangeByIndex(i + 3, 2).setText(DateFormat('dd/MM/yyyy').format(att.attendanceDate));
+        sheet
+            .getRangeByIndex(i + 3, 2)
+            .setText(DateFormat('dd/MM/yyyy').format(att.attendanceDate));
         sheet.getRangeByIndex(i + 3, 3).setNumber(att.totalHours);
         sheet.getRangeByIndex(i + 3, 4).setText(att.status);
       }
@@ -177,90 +333,86 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.red));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.red),
+    );
   }
 
   void _showSuccess(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message), backgroundColor: Colors.green));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message), backgroundColor: Colors.green),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        title: const Text('Tổng hợp chấm công'),
         centerTitle: true,
-        title: const Text('Tổng hợp chấm công', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, color: Colors.white)),
         backgroundColor: Colors.orange,
       ),
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-        onRefresh: _loadAttendances,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Card(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                elevation: 2,
-                margin: const EdgeInsets.only(bottom: 12),
-                child: Padding(
-                  padding: const EdgeInsets.all(12),
+      body:
+          _isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : RefreshIndicator(
+                onRefresh: () async {
+                  await _loadAttendances();
+                  await _loadSummaryInDateRange();
+                },
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        "📆 Chọn khoảng thời gian:",
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                          color: Color(0xFFEF6C00),
+                      // Tổng hợp
+                      Card(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 2,
+                        margin: const EdgeInsets.only(bottom: 12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '📊 Tổng hợp trong khoảng thời gian đã chọn:',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                  color: Color(0xFFEF6C00),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text('✅ Số ngày chấm công: $_workingDays'),
+                              Text('⏱️ Số ngày OT: $_overtimeDays'),
+                              Text('🛌 Số ngày nghỉ phép: $_leaveDays'),
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 12),
+
+                      // Chọn ngày
                       Row(
                         children: [
                           Expanded(
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.date_range),
-                              label: Text(DateFormat('dd/MM/yyyy').format(fromDate)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Color(0xFFFFB300),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                              ),
-                              onPressed: () async {
+                            child: _buildDateButton(
+                              label: 'Từ ngày',
+                              date: fromDate,
+                              onTap: () async {
                                 final picked = await showDatePicker(
                                   context: context,
                                   initialDate: fromDate,
                                   firstDate: DateTime(2023),
                                   lastDate: DateTime.now(),
-                                  builder: (context, child) {
-                                    return Theme(
-                                      data: Theme.of(context).copyWith(
-                                        colorScheme: const ColorScheme.light(
-                                          primary: Color(0xFFFFB300), // màu viền + icon
-                                          onPrimary: Colors.white, // màu chữ trên nút
-                                          onSurface: Colors.black, // màu chữ ngày
-                                        ),
-                                        dialogBackgroundColor: Color(0xFFFFF3E0), // nền dialog
-                                        textButtonTheme: TextButtonThemeData(
-                                          style: TextButton.styleFrom(
-                                            foregroundColor: Color(0xFFEF6C00), // màu nút CANCEL / OK
-                                          ),
-                                        ),
-                                      ),
-                                      child: child!,
-                                    );
-                                  },
                                 );
                                 if (picked != null) {
                                   setState(() => fromDate = picked);
-                                  _loadAttendances();
+                                  await _loadAttendances();
+                                  await _loadSummaryInDateRange();
                                 }
                               },
                             ),
@@ -269,119 +421,138 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
                           const Text("→"),
                           const SizedBox(width: 8),
                           Expanded(
-                            child: ElevatedButton.icon(
-                              icon: const Icon(Icons.date_range),
-                              label: Text(DateFormat('dd/MM/yyyy').format(toDate)),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Color(0xFFFFB300),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
-                              ),
-                              onPressed: () async {
+                            child: _buildDateButton(
+                              label: 'Đến ngày',
+                              date: toDate,
+                              onTap: () async {
                                 final picked = await showDatePicker(
-                                    context: context,
-                                    initialDate: toDate,
-                                    firstDate: DateTime(2023),
-                                    lastDate: DateTime.now(),
-                                    builder: (context, child) {
-                                      return Theme(
-                                        data: Theme.of(context).copyWith(
-                                          colorScheme: const ColorScheme.light(
-                                            primary: Color(0xFFFFB300), // màu viền + icon
-                                            onPrimary: Colors.white, // màu chữ trên nút
-                                            onSurface: Colors.black, // màu chữ ngày
-                                          ),
-                                          dialogBackgroundColor: Color(0xFFFFF3E0), // nền dialog
-                                          textButtonTheme: TextButtonThemeData(
-                                            style: TextButton.styleFrom(
-                                              foregroundColor: Color(0xFFEF6C00), // màu nút CANCEL / OK
-                                            ),
-                                          ),
-                                        ),
-                                        child: child!,
-                                      );
-                                    }
+                                  context: context,
+                                  initialDate: toDate,
+                                  firstDate: DateTime(2023),
+                                  lastDate: DateTime.now(),
                                 );
                                 if (picked != null) {
                                   setState(() => toDate = picked);
-                                  _loadAttendances();
+                                  await _loadAttendances();
+                                  await _loadSummaryInDateRange();
                                 }
                               },
                             ),
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+
+                      // Export
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _exportToExcel,
+                          icon: const Icon(Icons.download),
+                          label: const Text('Xuất Excel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFFB300),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            textStyle: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+                      const Text(
+                        '📝 Danh sách chấm công:',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      _attendances.isEmpty
+                          ? const Center(child: Text('Không có dữ liệu'))
+                          : ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _attendances.length,
+                            itemBuilder: (context, index) {
+                              final att = _attendances[index];
+                              return Card(
+                                elevation: 3,
+                                margin: const EdgeInsets.symmetric(vertical: 6),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: ListTile(
+                                  leading: CircleAvatar(
+                                    backgroundColor: const Color(0xFFF57C00),
+                                    child: Text(
+                                      att.employeeId
+                                          .substring(0, 2)
+                                          .toUpperCase(),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  title: Text(
+                                    att.employeeId,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  subtitle: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '📅 Ngày: ${DateFormat('dd/MM/yyyy').format(att.attendanceDate)}',
+                                      ),
+                                      Text('📌 Trạng thái: ${att.status}'),
+                                    ],
+                                  ),
+                                  trailing: Text(
+                                    '${att.totalHours}h',
+                                    style: const TextStyle(
+                                      color: Color(0xFFEF6C00),
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  isThreeLine: true,
+                                ),
+                              );
+                            },
+                          ),
                     ],
                   ),
                 ),
               ),
+    );
+  }
 
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: _exportToExcel,
-                  icon: const Icon(Icons.download),
-                  label: const Text('Xuất Excel'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFFFB300),
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 16),
-              const Text('📝 Danh sách chấm công:', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 10),
-
-              _attendances.isEmpty
-                  ? const Center(child: Text('Không có dữ liệu'))
-                  : ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: _attendances.length,
-                itemBuilder: (context, index) {
-                  final att = _attendances[index];
-                  return Card(
-                    elevation: 3,
-                    margin: const EdgeInsets.symmetric(vertical: 6),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    child: ListTile(
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFFF57C00),
-                        child: Text(
-                          att.employeeId.substring(0, 2).toUpperCase(),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      title: Text(att.employeeId, style: const TextStyle(fontWeight: FontWeight.bold)),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('📅 Ngày: ${DateFormat('dd/MM/yyyy').format(att.attendanceDate)}'),
-                          Text('📌 Trạng thái: ${att.status}'),
-                        ],
-                      ),
-                      trailing: Text(
-                        '${att.totalHours}h',
-                        style: const TextStyle(
-                          color: Color(0xFFEF6C00),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      isThreeLine: true,
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        ),
+  Widget _buildDateButton({
+    required String label,
+    required DateTime date,
+    required VoidCallback onTap,
+  }) {
+    return ElevatedButton.icon(
+      icon: const Icon(Icons.date_range),
+      label: Text(DateFormat('dd/MM/yyyy').format(date)),
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: const Color(0xFFFFB300),
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
       ),
     );
   }

@@ -1,5 +1,7 @@
-// import như cũ...
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:sem4_fe/ui/Hr/Setting/Setting.dart';
 import 'package:sem4_fe/ui/Hr/Staff/staff.dart';
@@ -11,7 +13,8 @@ import 'package:sem4_fe/ui/User/QR/Qrscanner.dart';
 class HomeHRPage extends StatefulWidget {
   final String username;
   final String token;
-  const HomeHRPage({super.key, required this.username, required this.token});
+
+  const HomeHRPage({super.key, required this.username, required this.token,});
 
   @override
   State<HomeHRPage> createState() => _HomeHRPageState();
@@ -22,10 +25,69 @@ class _HomeHRPageState extends State<HomeHRPage> {
   final Color _primaryColor = Colors.orange;
   final Color _secondaryColor = Colors.deepOrange;
   final Color _accentColor = Colors.orangeAccent;
+  int checkedIn = 0;
+  int late = 0;
+  int absent = 0;
+  int total = 0;
+  bool isLoadingStats = true;
 
+  @override
+  void initState() {
+    super.initState();
+    fetchAttendanceStats(); // <- thêm dòng này
+  }
 
   void _onItemTapped(int index) {
     setState(() => _selectedIndex = index);
+  }
+
+  Future<void> fetchAttendanceStats() async {
+    final url = Uri.parse('http://10.0.2.2:8080/api/attendances');
+    final response = await http.get(
+      url,
+      headers: {
+        'Authorization': 'Bearer ${widget.token}',
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List<dynamic> data = json.decode(response.body);
+
+      print('Tổng số bản ghi: ${data.length}');
+      for (int i = 0; i < data.length; i++) {
+        print('Bản ghi $i: ${json.encode(data[i])}');
+      }
+
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+      print('Ngày hôm nay: $today');
+
+      int presentCount = 0;
+      int lateCount = 0;
+      int absentCount = 0;
+      Set<String> employeeIds = {}; // Để đếm nhân viên duy nhất
+
+      for (var attendance in data) {
+        final status = attendance['status'];
+        final employeeId = attendance['employee']['employeeId'];
+
+        employeeIds.add(employeeId);
+
+        if (status == 'Present') presentCount++;
+        else if (status == 'Late') lateCount++;
+        else if (status == 'Absent') absentCount++;
+      }
+
+      setState(() {
+        checkedIn = presentCount;
+        late = lateCount;
+        absent = absentCount;
+        total = employeeIds.length;
+        isLoadingStats = false;
+      });
+    } else {
+      print('Lỗi lấy dữ liệu attendance: ${response.statusCode}');
+      setState(() => isLoadingStats = false);
+    }
   }
 
   void _showCheckInOptions(BuildContext context) {
@@ -390,7 +452,9 @@ class _HomeHRPageState extends State<HomeHRPage> {
           ),
         ),
         const SizedBox(height: 12),
-        GridView.count(
+        isLoadingStats
+            ? const Center(child: CircularProgressIndicator())
+            : GridView.count(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisCount: 2,
@@ -398,19 +462,20 @@ class _HomeHRPageState extends State<HomeHRPage> {
           mainAxisSpacing: 12,
           childAspectRatio: 1.4,
           children: [
-            _buildStatCard('Đã chấm công', '85', 'người',
+            _buildStatCard('Đã chấm công', '$checkedIn', 'người',
                 Icons.check_circle_outline_rounded, Colors.green),
-            _buildStatCard('Đi muộn', '5', 'người',
+            _buildStatCard('Đi muộn', '$late', 'người',
                 Icons.access_time_rounded, Colors.orange),
-            _buildStatCard('Vắng mặt', '10', 'người',
+            _buildStatCard('Vắng mặt', '$absent', 'người',
                 Icons.person_off_rounded, Colors.red),
-            _buildStatCard('Tổng số', '100', 'người',
+            _buildStatCard('Tổng số', '$total', 'người',
                 Icons.people_alt_rounded, _primaryColor),
           ],
         ),
       ],
     );
   }
+
 
   Widget _buildStatCard(
       String title, String value, String unit, IconData icon, Color color) {
@@ -463,7 +528,7 @@ class _HomeHRPageState extends State<HomeHRPage> {
           _buildBottomNavItem(Icons.people_alt_rounded, 'Nhân viên'),
           _buildBottomNavItem(Icons.schedule_rounded, 'Ca làm'),
           _buildBottomNavItem(Icons.note_alt_rounded, 'Quản lý đơn'),
-          _buildBottomNavItem(Icons.settings_rounded, 'Cài đặt'),
+          _buildBottomNavItem(Icons.dashboard_rounded, 'quản lý'),
         ],
       ),
     );

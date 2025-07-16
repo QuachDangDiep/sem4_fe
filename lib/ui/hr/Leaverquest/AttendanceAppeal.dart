@@ -4,59 +4,27 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:sem4_fe/Service/Constants.dart';
 
-class AttendanceAppeal {
-  final String appealId;
-  final String employeeId;
-  final String employeeName; // thêm dòng này
-  final String reason;
-  final String evidence;
-  final DateTime appealDate;
-  final String status;
-
-  AttendanceAppeal({
-    required this.appealId,
-    required this.employeeId,
-    required this.employeeName,
-    required this.reason,
-    required this.evidence,
-    required this.appealDate,
-    required this.status,
-  });
-
-  factory AttendanceAppeal.fromJson(Map<String, dynamic> json, {String? employeeName}) {
-    return AttendanceAppeal(
-      appealId: json['appealId'],
-      employeeId: json['employee']['employeeId'],
-      employeeName: employeeName ?? 'Unknown', // dùng nếu đã fetch
-      reason: json['reason'],
-      evidence: json['evidence'] ?? '',
-      appealDate: DateTime.parse(json['appealDate']),
-      status: json['status'],
-    );
-  }
-}
-
-class AttendanceAppealScreen extends StatefulWidget {
+class HRAttendanceAppealScreen extends StatefulWidget {
   final String token;
 
-  const AttendanceAppealScreen({super.key, required this.token});
+  const HRAttendanceAppealScreen({super.key, required this.token});
 
   @override
-  State<AttendanceAppealScreen> createState() => _AttendanceAppealScreenState();
+  State<HRAttendanceAppealScreen> createState() => _HRAttendanceAppealScreenState();
 }
 
-class _AttendanceAppealScreenState extends State<AttendanceAppealScreen> {
-  late Future<List<AttendanceAppeal>> _futureAppeals;
+class _HRAttendanceAppealScreenState extends State<HRAttendanceAppealScreen> {
+  late Future<List<Appeal>> _appeals;
 
   @override
   void initState() {
     super.initState();
-    _futureAppeals = fetchAttendanceAppeals();
+    _appeals = fetchAllAppeals();
   }
 
-  Future<List<AttendanceAppeal>> fetchAttendanceAppeals() async {
+  Future<List<Appeal>> fetchAllAppeals() async {
     final response = await http.get(
-      Uri.parse('${Constants.baseUrl}/api/attendance-appeals/all'),
+      Uri.parse('${Constants.baseUrl}/api/attendance-appeals/all'), // Thay domain đúng
       headers: {
         'Authorization': 'Bearer ${widget.token}',
         'Content-Type': 'application/json',
@@ -64,11 +32,10 @@ class _AttendanceAppealScreenState extends State<AttendanceAppealScreen> {
     );
 
     if (response.statusCode == 200) {
-      final json = jsonDecode(response.body);
-      final List data = json is List ? json : (json['data'] ?? []);
-      return data.map((e) => AttendanceAppeal.fromJson(e)).toList();
+      final List jsonData = jsonDecode(response.body);
+      return jsonData.map((e) => Appeal.fromJson(e)).toList();
     } else {
-      throw Exception('Lỗi khi tải danh sách giải trình: ${response.statusCode}');
+      throw Exception('Lỗi khi tải đơn giải trình');
     }
   }
 
@@ -77,50 +44,22 @@ class _AttendanceAppealScreenState extends State<AttendanceAppealScreen> {
       Uri.parse('${Constants.baseUrl}/api/attendance-appeals/$id/status'),
       headers: {
         'Authorization': 'Bearer ${widget.token}',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
       },
       body: jsonEncode({
         'status': status,
-        'reviewedBy': 'admin-id', // Cập nhật theo user thực tế
-        'note': 'Reviewed by HR',
+        'reviewedBy': 'admin-id', // cập nhật id thực tế
+        'note': 'Xét duyệt bởi HR',
       }),
     );
 
     if (response.statusCode == 200) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cập nhật thành công')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Cập nhật thành công")));
       setState(() {
-        _futureAppeals = fetchAttendanceAppeals();
+        _appeals = fetchAllAppeals();
       });
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Lỗi: ${response.body}')),
-      );
-    }
-  }
-
-  Future<String> fetchEmployeeName(String employeeId) async {
-    try {
-      final response = await http.get(
-        Uri.parse(Constants.employeeDetailUrl(employeeId)),
-        headers: {
-          'Authorization': 'Bearer ${widget.token}',
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final jsonData = jsonDecode(response.body);
-        return jsonData['data']?['fullName']?.toString() ??
-            jsonData['result']?['fullName']?.toString() ??
-            'Unknown';
-      }
-      return 'Unknown';
-    } catch (e) {
-      print('Error fetching employee name for $employeeId: $e');
-      return 'Unknown';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("Lỗi: ${response.body}")));
     }
   }
 
@@ -128,102 +67,225 @@ class _AttendanceAppealScreenState extends State<AttendanceAppealScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Quản lý đơn giải trình'),
-        backgroundColor: Colors.orange,
+        title: const Text('Đơn giải trình (HR)'),
         centerTitle: true,
+        backgroundColor: Colors.orange,
       ),
-      body: FutureBuilder<List<AttendanceAppeal>>(
-        future: _futureAppeals,
+      body: FutureBuilder<List<Appeal>>(
+        future: _appeals,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Lỗi: ${snapshot.error}'));
-          }
+          if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
+          if (snapshot.hasError) return Center(child: Text('Lỗi: ${snapshot.error}'));
           final appeals = snapshot.data!;
-          if (appeals.isEmpty) {
-            return const Center(child: Text('Không có đơn giải trình nào.'));
-          }
+          if (appeals.isEmpty) return const Center(child: Text('Không có đơn giải trình nào'));
+
           return ListView.builder(
-            itemCount: appeals.length,
             padding: const EdgeInsets.all(12),
+            itemCount: appeals.length,
             itemBuilder: (context, index) {
-              final appeal = appeals[index];
-              return Card(
-                margin: const EdgeInsets.only(bottom: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                elevation: 3,
-                shadowColor: Colors.grey.withOpacity(0.2),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Nhân viên: ${appeal.employeeName} (${appeal.employeeId})',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Ngày gửi: ${DateFormat('dd/MM/yyyy HH:mm').format(appeal.appealDate)}',
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text('Lý do:', style: const TextStyle(fontWeight: FontWeight.bold)),
-                      Text(appeal.reason, style: Theme.of(context).textTheme.bodyLarge),
-                      const SizedBox(height: 8),
-                      if (appeal.evidence.isNotEmpty) ...[
-                        Text('Bằng chứng:', style: const TextStyle(fontWeight: FontWeight.bold)),
-                        Text(appeal.evidence, style: Theme.of(context).textTheme.bodyMedium),
-                        const SizedBox(height: 8),
+              final a = appeals[index];
+              print('Evidence (first 100 chars): ${a.evidence.substring(0, a.evidence.length > 100 ? 100 : a.evidence.length)}');
+              final statusColor = a.status == 'Approved'
+                  ? Colors.green
+                  : a.status == 'Rejected'
+                  ? Colors.red
+                  : Colors.orange;
+
+              final statusBgColor = a.status == 'Approved'
+                  ? Colors.green.shade50
+                  : a.status == 'Rejected'
+                  ? Colors.red.shade50
+                  : Colors.orange.shade50;
+
+// 👉 Thêm đoạn này ngay sau:
+              final IconData statusIcon;
+              final String statusText;
+
+              if (a.status == 'Approved') {
+                statusIcon = Icons.check_circle;
+                statusText = 'Đã phê duyệt';
+              } else if (a.status == 'Rejected') {
+                statusIcon = Icons.cancel;
+                statusText = 'Từ chối';
+              } else {
+                statusIcon = Icons.hourglass_top;
+                statusText = 'Đang chờ';
+              }
+
+// Thay thế widget trong itemBuilder
+              return Container(
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      spreadRadius: 2,
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Avatar + Thông tin nhân viên
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const CircleAvatar(
+                          backgroundColor: Colors.orange,
+                          radius: 24,
+                          child: Icon(Icons.person, color: Colors.white, size: 22),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(a.employeeName,
+                                  style: const TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.black87)),
+                              const SizedBox(height: 4),
+                              Text('Mã NV: ${a.employeeId}',
+                                  style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                              const SizedBox(height: 4),
+                              Text(DateFormat('dd/MM/yyyy HH:mm').format(a.appealDate),
+                                  style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                            ],
+                          ),
+                        )
                       ],
-                      const Divider(),
+                    ),
+
+                    const Divider(height: 28, thickness: 0.8),
+
+                    // Lý do giải trình
+                    const Text('📌 Lý do giải trình',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    Text(a.reason,
+                        style: const TextStyle(fontSize: 15, color: Colors.black87)),
+
+                    // Bằng chứng (nếu có)
+                    if (a.evidence.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      GestureDetector(
+                        onTap: () {
+                          showDialog(
+                            context: context,
+                            builder: (_) => AlertDialog(
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              title: Row(
+                                children: const [
+                                  Icon(Icons.image, color: Colors.orange),
+                                  SizedBox(width: 8),
+                                  Text("Bằng chứng",
+                                      style: TextStyle(
+                                          color: Colors.orange, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              content: ClipRRect(
+                                borderRadius: BorderRadius.circular(10),
+                                child: Image.memory(base64Decode(
+                                    a.evidence.contains(",")
+                                        ? a.evidence.split(",")[1]
+                                        : a.evidence)),
+                              ),
+                              actions: [
+                                TextButton.icon(
+                                  onPressed: () => Navigator.pop(context),
+                                  icon: const Icon(Icons.close, color: Colors.orange),
+                                  label: const Text("Đóng",
+                                      style: TextStyle(
+                                          color: Colors.orange, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(top: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: const [
+                              Icon(Icons.attach_file, color: Colors.orange),
+                              SizedBox(width: 8),
+                              Text("Xem hình ảnh",
+                                  style: TextStyle(
+                                      color: Colors.orange, fontWeight: FontWeight.w500)),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    const SizedBox(height: 16),
+
+                    // Trạng thái
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: statusBgColor,
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(statusIcon, color: statusColor, size: 16),
+                          const SizedBox(width: 6),
+                          Text(statusText,
+                              style: TextStyle(
+                                  color: statusColor, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+
+                    if (a.status == 'Pending') ...[
+                      const SizedBox(height: 16),
                       Row(
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            decoration: BoxDecoration(
-                              color: appeal.status == 'Approved'
-                                  ? Colors.green.shade100
-                                  : appeal.status == 'Rejected'
-                                  ? Colors.red.shade100
-                                  : Colors.orange.shade100,
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              appeal.status,
-                              style: TextStyle(
-                                color: appeal.status == 'Approved'
-                                    ? Colors.green
-                                    : appeal.status == 'Rejected'
-                                    ? Colors.red
-                                    : Colors.orange,
-                                fontWeight: FontWeight.bold,
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () => updateStatus(a.appealId, 'Approved'),
+                              icon: const Icon(Icons.check, size: 18),
+                              label: const Text("Phê duyệt"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30)),
                               ),
                             ),
                           ),
-                          const Spacer(),
-                          if (appeal.status == 'Pending')
-                            Wrap(
-                              spacing: 8,
-                              children: [
-                                TextButton.icon(
-                                  icon: const Icon(Icons.check, color: Colors.green),
-                                  label: const Text("Duyệt", style: TextStyle(color: Colors.green)),
-                                  onPressed: () => updateStatus(appeal.appealId, 'Approved'),
-                                ),
-                                TextButton.icon(
-                                  icon: const Icon(Icons.close, color: Colors.red),
-                                  label: const Text("Từ chối", style: TextStyle(color: Colors.red)),
-                                  onPressed: () => updateStatus(appeal.appealId, 'Rejected'),
-                                ),
-                              ],
-                            )
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => updateStatus(a.appealId, 'Rejected'),
+                              icon: const Icon(Icons.close, size: 18),
+                              label: const Text("Từ chối"),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: const BorderSide(color: Colors.red),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(30)),
+                              ),
+                            ),
+                          ),
                         ],
-                      )
-                    ],
-                  ),
+                      ),
+                    ]
+                  ],
                 ),
               );
             },
@@ -232,4 +294,34 @@ class _AttendanceAppealScreenState extends State<AttendanceAppealScreen> {
       ),
     );
   }
+}
+
+class Appeal {
+  final String appealId;
+  final String employeeId;
+  final String employeeName;
+  final String reason;
+  final String evidence;
+  final DateTime appealDate;
+  final String status;
+
+  Appeal( {
+    required this.appealId,
+    required this.employeeName,
+    required this.employeeId,
+    required this.reason,
+    required this.evidence,
+    required this.appealDate,
+    required this.status,
+  });
+
+  factory Appeal.fromJson(Map<String, dynamic> json) => Appeal(
+    appealId: json['appealId'],
+    employeeId: json['employee']['employeeId'],
+    employeeName: json['employee']['fullName'],
+    reason: json['reason'],
+    evidence: json['evidence'] ?? '',
+    appealDate: DateTime.parse(json['appealDate']),
+    status: json['status'],
+  );
 }
