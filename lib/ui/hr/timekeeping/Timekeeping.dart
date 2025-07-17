@@ -106,13 +106,24 @@ class _WorkScheduleInfoListScreenState extends State<WorkScheduleInfoListScreen>
             itemBuilder: (context, index) {
               final s = schedules[index];
               final isActive = s.status == 'Active';
-
-              return InkWell(
+              return Opacity(
+                opacity: s.status == 'Normal' ? 0.5 : 1.0,
+                child: InkWell(
                   onTap: () {
+                    if (s.name == 'Normal') {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text("Không thể truy cập ca làm 'Normal'"),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                          builder: (_) => ApproveOvertimeScreen(token: widget.token)
+                        builder: (_) => ApproveOvertimeScreen(token: widget.token),
                       ),
                     );
                   },
@@ -203,7 +214,8 @@ class _WorkScheduleInfoListScreenState extends State<WorkScheduleInfoListScreen>
                         ],
                       ),
                     ),
-                  )
+                  ),
+                ),
               );
             },
           );

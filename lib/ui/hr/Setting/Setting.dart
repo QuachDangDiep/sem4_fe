@@ -126,12 +126,13 @@ class _HrSettingsPageState extends State<HrSettingsPage> {
                 if (item.title == 'Thông tin công ty') {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => CompanyInfoSection(username: widget.username, token: widget.token)));
                 } else if (item.title == 'Cài đặt tài khoản') {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => ApproveOvertimeScreen(token: widget.token)));
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => AccountSettingsSection(username: widget.username, token: widget.token)));
                 } else if (item.title == 'Danh sách đăng ký ca làm') {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => HRWorkScheduleScreen(token: widget.token)));
                 } else if (item.title == 'Quản lý chấm công') {
                   Navigator.push(context, MaterialPageRoute(
-                      builder: (_) => AttendanceManagementScreen()));
+                    builder: (_) => AttendanceManagementScreen(token: widget.token),
+                  ));
                 } else if (item.title == 'Giải trình chấm công') {
                   Navigator.push(context, MaterialPageRoute(builder: (_) =>
                       AttendanceAppealPage(token: widget.token)));

@@ -5,20 +5,24 @@ import 'dart:convert';
 import 'package:sem4_fe/Service/Constants.dart';
 
 class AttendanceManagementScreen extends StatefulWidget {
-  const AttendanceManagementScreen({Key? key}) : super(key: key);
+  final String token;
+
+  const AttendanceManagementScreen({Key? key, required this.token}) : super(key: key);
 
   @override
-  State<AttendanceManagementScreen> createState() =>
-      _AttendanceManagementScreenState();
+  State<AttendanceManagementScreen> createState() => _AttendanceManagementScreenState();
 }
 
 class _AttendanceManagementScreenState extends State<AttendanceManagementScreen> {
   List<dynamic> attendanceList = [];
+  List<dynamic> employeeList = [];
   bool isLoading = true;
+  String? selectedEmployeeId;
 
   @override
   void initState() {
     super.initState();
+    fetchEmployeeList();
     fetchAttendance();
   }
 
@@ -28,7 +32,13 @@ class _AttendanceManagementScreenState extends State<AttendanceManagementScreen>
     });
 
     try {
-      final response = await http.get(Uri.parse(Constants.activeQrAttendanceUrl));
+      final response = await http.get(
+        Uri.parse(Constants.activeQrAttendanceUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${widget.token}',
+        },
+      );
 
       if (response.statusCode == 200) {
         setState(() {
@@ -39,26 +49,141 @@ class _AttendanceManagementScreenState extends State<AttendanceManagementScreen>
         throw Exception('Failed to load attendance records');
       }
     } catch (e) {
-      print(e);
+      print('Lỗi khi tải chấm công: $e');
       setState(() {
         isLoading = false;
       });
     }
   }
 
-  Future<void> deleteAttendance(String qrId) async {
-    final url = Constants.qrAttendanceDetailUrl(qrId);
-    final response = await http.delete(Uri.parse(url));
+  Future<String?> getUserRoleId() async {
+    try {
+      final response = await http.get(
+        Uri.parse(Constants.rolesUrl),
+        headers: {
+          'Authorization': 'Bearer ${widget.token}',
+          'Content-Type': 'application/json',
+        },
+      );
 
-    if (response.statusCode == 204) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Xóa thành công')),
+      if (response.statusCode == 200) {
+        final decoded = jsonDecode(response.body);
+        final roles = decoded['result'] ?? [];
+
+        print('Danh sách vai trò từ API rolesUrl: $roles');
+
+        final userRoles = roles.where((r) => r['roleName']?.toString().toLowerCase() == 'user').toList();
+
+        if (userRoles.isNotEmpty) {
+          final roleId = userRoles.first['roleId']?.toString();
+          print('roleId của user: $roleId');
+          return roleId;
+        } else {
+          print('Không tìm thấy vai trò "user" trong danh sách vai trò');
+        }
+      } else {
+        print('Lỗi lấy danh sách vai trò: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('Lỗi getUserRoleId: $e');
+    }
+    return null;
+  }
+
+  Future<List<dynamic>> fetchUsers({String? roleId, String? status}) async {
+    try {
+      final queryParameters = status != null ? {'status': status} : <String, String>{};
+      final uri = Uri.parse(Constants.homeUrl).replace(queryParameters: queryParameters);
+
+      final response = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer ${widget.token}', 'Content-Type': 'application/json'},
       );
-      fetchAttendance();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Xóa thất bại')),
-      );
+
+      if (response.statusCode == 200) {
+        final usersRaw = jsonDecode(response.body)['result'] ?? [];
+        List<dynamic> users = [];
+
+        for (final json in usersRaw) {
+          print('UserId: ${json['userId']} - Role: ${json['role']}');
+
+          // Kiểm tra trường role trực tiếp
+          bool hasRole = json['role']?.toString() == roleId;
+
+          if (roleId != null && !hasRole) {
+            continue;
+          }
+
+          users.add(json);
+        }
+
+        print('Số lượng người dùng có vai trò user: ${users.length}');
+        return users;
+      } else {
+        print('Lỗi lấy danh sách users: ${response.statusCode} - ${response.body}');
+      }
+    } catch (e) {
+      print('Lỗi fetchUsers: $e');
+    }
+
+    return [];
+  }
+
+  Future<void> fetchEmployeeList() async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
+
+      final roleId = await getUserRoleId();
+      if (roleId == null) {
+        print('Không tìm thấy roleId cho vai trò user');
+        setState(() {
+          isLoading = false;
+        });
+        return;
+      }
+
+      final users = await fetchUsers(roleId: roleId);
+      List<dynamic> filteredEmployees = [];
+
+      for (final user in users) {
+        final employeeIdResponse = await http.get(
+          Uri.parse(Constants.employeeIdByUserIdUrl(user['userId'])),
+          headers: {'Authorization': 'Bearer ${widget.token}'},
+        );
+
+        if (employeeIdResponse.statusCode != 200 || employeeIdResponse.body.trim().isEmpty) {
+          print('Không lấy được employeeId cho userId: ${user['userId']}');
+          continue;
+        }
+
+        final employeeId = employeeIdResponse.body.trim();
+
+        final detailResponse = await http.get(
+          Uri.parse(Constants.employeeDetailUrl(employeeId)),
+          headers: {'Authorization': 'Bearer ${widget.token}'},
+        );
+
+        if (detailResponse.statusCode == 200) {
+          final employee = jsonDecode(detailResponse.body);
+          filteredEmployees.add(employee);
+        } else {
+          print('Lỗi lấy chi tiết nhân viên $employeeId: ${detailResponse.statusCode}');
+        }
+      }
+
+      setState(() {
+        employeeList = filteredEmployees;
+        isLoading = false;
+      });
+
+      print('Tổng số nhân viên có role user: ${employeeList.length}');
+    } catch (e) {
+      print('Lỗi API nhân viên với roleId: $e');
+      setState(() {
+        isLoading = false;
+      });
     }
   }
 
@@ -71,126 +196,163 @@ class _AttendanceManagementScreenState extends State<AttendanceManagementScreen>
     }
   }
 
+  List<dynamic> getFilteredAttendance() {
+    if (selectedEmployeeId == null || selectedEmployeeId!.isEmpty) {
+      return attendanceList;
+    }
+
+    return attendanceList.where((item) => item['employee']?['employeeId'] == selectedEmployeeId).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final filteredList = getFilteredAttendance();
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Quản lý chấm công (HR)'),
+        title: const Text('Quản lý chấm công'),
         centerTitle: true,
         backgroundColor: Colors.orange,
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : attendanceList.isEmpty
-          ? const Center(child: Text('Không có dữ liệu chấm công'))
-          : ListView.builder(
-        itemCount: attendanceList.length,
-        itemBuilder: (context, index) {
-          final item = attendanceList[index];
-          final employee = item['employee'];
-          final employeeName =
-              "${employee?['firstName'] ?? ''} ${employee?['lastName'] ?? ''}";
-
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Card(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+      body: Column(
+        children: [
+          // Dropdown chọn nhân viên
+          Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: DropdownButtonFormField<String>(
+              value: selectedEmployeeId,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Chọn nhân viên',
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
               ),
-              elevation: 6,
-              color: const Color(0xFFF7F7F7), // nền xám nhẹ
-              shadowColor: Colors.black12,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16.0, horizontal: 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            employeeName,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.black87,
-                            ),
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_forever, color: Colors.redAccent),
-                          onPressed: () async {
-                            final confirm = await showDialog<bool>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('Xác nhận xóa'),
-                                content: const Text('Bạn có chắc muốn xóa bản ghi này không?'),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.of(context).pop(false),
-                                    child: const Text('Hủy'),
-                                  ),
-                                  TextButton(
-                                    onPressed: () => Navigator.of(context).pop(true),
-                                    child: const Text('Xóa'),
-                                  ),
-                                ],
-                              ),
-                            );
-                            if (confirm == true) {
-                              await deleteAttendance(item['qrId']);
-                            }
-                          },
-                        )
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    buildInfoRow(Icons.calendar_today, 'Ngày chấm công:',
-                        formatDate(item['attendanceDate'] ?? '')),
-                    const SizedBox(height: 8),
-                    buildInfoRow(Icons.badge, 'Phương thức:', item['attendanceMethod'] ?? 'N/A'),
-                    const SizedBox(height: 8),
-                    buildInfoRow(Icons.info_outline, 'Trạng thái:', item['status'] ?? 'N/A'),
-                  ],
-                ),
-              ),
+              items: employeeList.map<DropdownMenuItem<String>>((employee) {
+                final empId = employee['employeeId']?.toString();
+                print('Thêm nhân viên vào Dropdown: ${employee['fullName']} - $empId');
+                return DropdownMenuItem<String>(
+                  value: empId,
+                  child: Text(employee['fullName'] ?? 'Không rõ tên'),
+                );
+              }).toList(),
+              onChanged: (value) {
+                setState(() {
+                  selectedEmployeeId = value;
+                });
+              },
             ),
-          );
-        },
+          ),
+
+          Expanded(
+            child: isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : filteredList.isEmpty
+                ? const Center(child: Text('Không có dữ liệu chấm công'))
+                : ListView.builder(
+              itemCount: filteredList.length,
+              itemBuilder: (context, index) {
+                final item = filteredList[index];
+                final employeeMap = item['employee'];
+                final empId = employeeMap?['employeeId'] ?? 'N/A';
+                final empName = employeeMap?['fullName'] ?? 'Không rõ tên';
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Material(
+                    elevation: 5,
+                    borderRadius: BorderRadius.circular(20),
+                    shadowColor: Colors.black12,
+                    color: Colors.white,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 25,
+                                backgroundColor: Colors.orange,
+                                child: const Icon(Icons.person, color: Colors.white),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      empName,
+                                      style: const TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Mã NV: $empId',
+                                      style: TextStyle(color: Colors.grey[700]),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          Container(height: 1, color: Colors.grey.shade200),
+                          const SizedBox(height: 12),
+
+                          buildInfoRow(Icons.calendar_today, 'Ngày chấm công:',
+                              formatDate(item['attendanceDate'] ?? ''), iconColor: Colors.indigo),
+
+                          const SizedBox(height: 8),
+
+                          buildInfoRow(Icons.fingerprint, 'Phương thức:',
+                              item['attendanceMethod'] ?? 'N/A', iconColor: Colors.deepPurple),
+
+                          const SizedBox(height: 8),
+
+                          buildInfoRow(Icons.check_circle, 'Trạng thái:', item['status'] ?? 'N/A',
+                              iconColor: item['status']?.toLowerCase() == 'active'
+                                  ? Colors.red
+                                  : Colors.green),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }
-}
 
-Widget buildInfoRow(IconData icon, String label, String value) {
-  return Row(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      Icon(icon, size: 18, color: Colors.blueGrey),
-      const SizedBox(width: 10),
-      Expanded(
-        child: RichText(
-          text: TextSpan(
-            text: '$label ',
-            style: const TextStyle(
-              fontSize: 14,
-              color: Colors.black87,
-              fontWeight: FontWeight.w500,
-            ),
-            children: [
-              TextSpan(
-                text: value,
-                style: const TextStyle(
-                  fontWeight: FontWeight.normal,
-                  color: Colors.black54,
-                ),
+  Widget buildInfoRow(IconData icon, String label, String value, {Color? iconColor}) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: iconColor ?? Colors.teal),
+        const SizedBox(width: 12),
+        Expanded(
+          child: RichText(
+            text: TextSpan(
+              text: '$label ',
+              style: const TextStyle(
+                fontSize: 14,
+                color: Colors.black87,
+                fontWeight: FontWeight.w600,
               ),
-            ],
+              children: [
+                TextSpan(
+                  text: value,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.normal,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      ),
-    ],
-  );
+      ],
+    );
+  }
 }
-

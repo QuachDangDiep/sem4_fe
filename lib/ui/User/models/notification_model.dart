@@ -1,27 +1,27 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 class AppNotification {
   final String id;
   final String title;
   final String message;
-  final bool isRead;
   final DateTime createdAt;
+  final String sentBy;
+  bool isRead;
 
   AppNotification({
     required this.id,
     required this.title,
     required this.message,
-    required this.isRead,
     required this.createdAt,
+    required this.sentBy,
+    this.isRead = false,
   });
 
-  factory AppNotification.fromMap(String id, Map<String, dynamic> data) {
+  factory AppNotification.fromJson(Map<String, dynamic> json) {
     return AppNotification(
-      id: id,
-      title: data['title'],
-      message: data['message'],
-      isRead: data['isRead'] ?? false,
-      createdAt: (data['sentAt'] as Timestamp).toDate(),
+      id: json['id'],
+      title: json['title'],
+      message: json['message'],
+      createdAt: DateTime.parse(json['sentAt']),
+      sentBy: json['sentBy'],
     );
   }
 }

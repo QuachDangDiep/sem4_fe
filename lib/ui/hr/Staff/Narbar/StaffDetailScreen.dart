@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/WorkHistory.dart';
+import '../../../../Service/Constants.dart';
 
 class StaffDetailScreen extends StatelessWidget {
   final String employeeId;
@@ -61,9 +63,10 @@ class StaffDetailScreen extends StatelessWidget {
               ),
               child: CircleAvatar(
                 radius: 60,
-                backgroundImage: image.startsWith('http')
-                    ? NetworkImage(image)
-                    : const AssetImage('assets/avatar.jpg') as ImageProvider,
+                backgroundImage: _getImageProvider(image),
+                onBackgroundImageError: (exception, stackTrace) {
+                  print('Lỗi tải ảnh trong StaffDetailScreen: $exception');
+                },
               ),
             ),
             const SizedBox(height: 16),
@@ -72,11 +75,6 @@ class StaffDetailScreen extends StatelessWidget {
               style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 6),
-            // Text(
-            //   positionName != null && positionName!.isNotEmpty ? positionName! : '---',
-            //   style: const TextStyle(fontSize: 16, color: Colors.grey),
-            // ),
-            // const SizedBox(height: 20),
             Card(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               color: Colors.white,
@@ -124,6 +122,38 @@ class StaffDetailScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  ImageProvider _getImageProvider(String imageUrl) {
+    if (imageUrl.isNotEmpty && (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'))) {
+      try {
+        return NetworkImage(imageUrl);
+      } catch (e) {
+        print('Lỗi tải ảnh từ URL: $e');
+        return const AssetImage('assets/avatar.jpg');
+      }
+    } else if (imageUrl.isNotEmpty && (imageUrl.startsWith('/9j/') || imageUrl.startsWith('data:image'))) {
+      try {
+        String base64String = imageUrl.startsWith('data:image')
+            ? imageUrl.split(',')[1]
+            : imageUrl;
+        return MemoryImage(base64Decode(base64String));
+      } catch (e) {
+        print('Lỗi giải mã hình ảnh Base64: $e');
+        return const AssetImage('assets/avatar.jpg');
+      }
+    } else if (imageUrl.isNotEmpty && imageUrl.startsWith('/')) {
+      // Xử lý đường dẫn tương đối
+      try {
+        return NetworkImage('${Constants.baseUrl}$imageUrl');
+      } catch (e) {
+        print('Lỗi tải ảnh từ đường dẫn tương đối: $e');
+        return const AssetImage('assets/avatar.jpg');
+      }
+    } else {
+      print('Sử dụng ảnh mặc định vì URL không hợp lệ: $imageUrl');
+      return const AssetImage('assets/avatar.jpg');
+    }
   }
 }
 
