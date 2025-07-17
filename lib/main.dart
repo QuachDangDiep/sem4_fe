@@ -21,7 +21,7 @@ FlutterLocalNotificationsPlugin();
 /// ✅ Handler khi app ở trạng thái background hoặc terminated
 Future<void> _firebaseBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  print("🔕 [Background] message received: ${message.notification?.title}");
+  print("🔕 [Background] message received: ${message}");
 }
 
 /// ✅ Hiển thị local notification
