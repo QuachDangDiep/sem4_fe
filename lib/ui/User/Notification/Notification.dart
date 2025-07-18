@@ -274,7 +274,7 @@ class _NotificationPageState extends State<NotificationPage> {
                           subtitle: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(noti.message, maxLines: 2, overflow: TextOverflow.ellipsis),
+                              Text(noti.message),
                               const SizedBox(height: 4),
                               Text(formattedDate,
                                   style: const TextStyle(fontSize: 12, color: Colors.grey)),
