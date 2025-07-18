@@ -7,7 +7,15 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 
 class AttendanceHistoryScreen extends StatefulWidget {
   final String token;
-  const AttendanceHistoryScreen({Key? key, required this.token}) : super(key: key);
+  final String? employeeId;
+  final String? employeeName;
+
+  const AttendanceHistoryScreen({
+    Key? key,
+    required this.token,
+    this.employeeId,
+    this.employeeName,
+  }) : super(key: key);
 
   @override
   State<AttendanceHistoryScreen> createState() => _AttendanceHistoryScreenState();
@@ -27,24 +35,27 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
   }
 
   Future<void> _loadEmployeeId() async {
+    if (widget.employeeId != null) {
+      // Nếu HR đã truyền vào employeeId → dùng luôn
+      employeeId = widget.employeeId;
+      await fetchAttendanceData(employeeId!);
+      return;
+    }
+
     try {
-      final token = widget.token;
-      final decodedToken = JwtDecoder.decode(token);
+      final decodedToken = JwtDecoder.decode(widget.token);
       final userId = decodedToken['userId'];
 
       final response = await http.get(
         Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
         headers: {
-          'Authorization': 'Bearer $token',
+          'Authorization': 'Bearer ${widget.token}',
         },
       );
 
       if (response.statusCode == 200) {
-        setState(() {
-          employeeId = response.body.replaceAll('"', ''); // clean quotes if any
-        });
+        employeeId = response.body.replaceAll('"', '');
         await fetchAttendanceData(employeeId!);
-        print (employeeId);
       } else {
         throw Exception('Không lấy được employeeId từ userId');
       }
@@ -55,6 +66,7 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
       print("❌ $_errorMessage");
     }
   }
+
 
 
   Future<void> fetchAttendanceData(String empId) async {
@@ -269,11 +281,16 @@ class _AttendanceHistoryScreenState extends State<AttendanceHistoryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text('Lịch sử chấm công $currentYear',style: TextStyle(
-          fontWeight: FontWeight.bold,
-          fontSize: 20,
-          color: Colors.white,
-        ),),
+        title: Text(
+          widget.employeeName != null
+              ? 'Lịch sử - ${widget.employeeName}'
+              : 'Lịch sử chấm công ${DateTime.now().year}',
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 20,
+            color: Colors.white,
+          ),
+        ),
         backgroundColor: Colors.orange,
         centerTitle: true,
       ),

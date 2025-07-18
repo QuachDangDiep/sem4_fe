@@ -179,9 +179,15 @@ class AttendanceService {
 
 class AttendanceSummaryScreen extends StatefulWidget {
   final String token;
+  final String? employeeId;
+  final String? employeeName;
 
-  const AttendanceSummaryScreen({Key? key, required this.token})
-      : super(key: key);
+  const AttendanceSummaryScreen({
+    Key? key,
+    required this.token,
+    this.employeeId,
+    this.employeeName,
+  }) : super(key: key);
 
   @override
   _AttendanceSummaryScreenState createState() =>
@@ -217,7 +223,17 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
 
   Future<void> _fetchEmployeeIdAndLoadData() async {
     setState(() => _isLoading = true);
+
     try {
+      // Nếu HR truyền employeeId → dùng luôn
+      if (widget.employeeId != null) {
+        employeeId = widget.employeeId!;
+        await _loadAttendances();
+        await _loadSummaryInDateRange();
+        return;
+      }
+
+      // Nếu không thì giải mã từ token như cũ
       final parts = widget.token.split('.');
       final payload = base64.normalize(parts[1]);
       final decoded = json.decode(utf8.decode(base64.decode(payload)));
@@ -255,6 +271,7 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
         fromDate: formattedFrom,
         toDate: formattedTo,
       );
+      list.sort((a, b) => b.attendanceDate.compareTo(a.attendanceDate));
 
       setState(() => _attendances = list);
     } catch (e) {
@@ -350,7 +367,11 @@ class _AttendanceSummaryScreenState extends State<AttendanceSummaryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Tổng hợp chấm công'),
+        title: Text(
+          widget.employeeName != null
+              ? 'Tổng hợp - ${widget.employeeName}'
+              : 'Tổng hợp chấm công',
+        ),
         centerTitle: true,
         backgroundColor: primaryColor,
       ),
