@@ -9,8 +9,7 @@ import 'package:sem4_fe/ui/User/Notification/Notification.dart';
 import 'package:sem4_fe/ui/User/Propose/Propose.dart';
 import 'package:sem4_fe/ui/User/QR/Qrscanner.dart';
 import 'package:sem4_fe/ui/User/QR/Facecame.dart';
-import 'package:sem4_fe/ui/User/Individual/Navbar/WorkHistory.dart';
-import 'package:sem4_fe/ui/User/Individual/Navbar/histotyqr.dart';
+import 'package:sem4_fe/ui/User/Propose/Navbar/WorkSchedulePage.dart';
 import 'package:sem4_fe/Service/Constants.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/Information.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -18,7 +17,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 class HomeScreen extends StatefulWidget {
   final String username;
   final String token;
-
   const HomeScreen({
     Key? key,
     required this.username,
@@ -33,7 +31,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, dynamic>? userData;
   bool isLoading = true;
   int _selectedIndex = 0;
-
   Map<String, dynamic>? lastCheckInData;
   bool hasCheckedIn = false;
   bool hasCheckedOut = false;
@@ -59,30 +56,23 @@ class _HomeScreenState extends State<HomeScreen> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
       if (token == null) return;
-
       final decoded = JwtDecoder.decode(token);
       final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
       if (userId == null) return;
-
       final employeeIdRes = await http.get(
         Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
         headers: {'Authorization': 'Bearer $token'},
       );
-
       if (employeeIdRes.statusCode != 200) return;
-
       final employeeId = employeeIdRes.body.trim();
       await prefs.setString('employeeId', employeeId);
-
       final detailRes = await http.get(
         Uri.parse(Constants.employeeDetailUrl(employeeId)),
         headers: {'Authorization': 'Bearer $token'},
       );
-
       if (detailRes.statusCode == 200) {
         final data = json.decode(detailRes.body);
         final base64Img = data['img']?.toString().trim() ?? '';
-
         if (mounted) {
           setState(() {
             userData?['img'] = base64Img;
@@ -101,7 +91,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final prefs = await SharedPreferences.getInstance();
     final currentDate = DateTime.now().toIso8601String().split('T')[0];
     final storedDate = prefs.getString('lastAttendanceDate');
-
     if (storedDate != currentDate) {
       await prefs.setBool('hasCheckedIn', false);
       await prefs.setBool('hasCheckedOut', false);
@@ -129,17 +118,14 @@ class _HomeScreenState extends State<HomeScreen> {
           'Authorization': 'Bearer ${widget.token}',
         },
       );
-
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseData = jsonDecode(response.body);
-
         if (responseData['result'] != null) {
           List users = responseData['result'];
           final user = users.firstWhere(
                 (u) => u['username'] == widget.username,
             orElse: () => null,
           );
-
           setState(() {
             userData = user != null ? Map<String, dynamic>.from(user) : null;
             isLoading = false;
@@ -165,35 +151,27 @@ class _HomeScreenState extends State<HomeScreen> {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('auth_token');
       if (token == null) return null;
-
       final decoded = JwtDecoder.decode(token);
       final userId = decoded['userId']?.toString() ?? decoded['sub']?.toString();
       if (userId == null) return null;
-
       final employeeIdRes = await http.get(
         Uri.parse(Constants.employeeIdByUserIdUrl(userId)),
         headers: {'Authorization': 'Bearer $token'},
       );
-
       if (employeeIdRes.statusCode != 200) return null;
-
       final employeeId = employeeIdRes.body.trim();
       if (employeeId.isEmpty) return null;
-
       await prefs.setString('employeeId', employeeId);
-
       final detailRes = await http.get(
         Uri.parse(Constants.employeeDetailUrl(employeeId)),
         headers: {'Authorization': 'Bearer $token'},
       );
-
       if (detailRes.statusCode == 200) {
         final data = json.decode(detailRes.body);
         final img = (data['img'] ?? '').toString().trim();
         final fullImgUrl = img.isNotEmpty
             ? (img.startsWith('http') ? img : '${Constants.baseUrl}${img.startsWith('/') ? '' : '/'}$img')
             : null;
-
         if (mounted) {
           setState(() {
             avatarUrl = fullImgUrl;
@@ -211,7 +189,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _handleCheckInResult(Map<String, dynamic> result) async {
     final prefs = await SharedPreferences.getInstance();
-
     if (result['type'] == 'checkin') {
       setState(() => hasCheckedIn = true);
       await prefs.setBool('hasCheckedIn', true);
@@ -225,7 +202,6 @@ class _HomeScreenState extends State<HomeScreen> {
         const SnackBar(content: Text('Chấm công ra thành công!')),
       );
     }
-
     if (result['shifts'] != null) {
       setState(() {
         workShifts = result['shifts'];
@@ -233,7 +209,6 @@ class _HomeScreenState extends State<HomeScreen> {
     } else {
       await fetchWorkShifts();
     }
-
     await fetchUserInfo();
     await _loadAttendanceStatus();
   }
@@ -244,17 +219,13 @@ class _HomeScreenState extends State<HomeScreen> {
       final token = prefs.getString('auth_token');
       final employeeId = prefs.getString('employeeId');
       if (token == null || employeeId == null) return;
-
       final response = await http.get(
         Uri.parse(Constants.qrAttendancesByEmployeeUrl(employeeId)),
         headers: {'Authorization': 'Bearer $token'},
       );
-
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
-
         data.sort((a, b) => DateTime.parse(b['scanTime']).compareTo(DateTime.parse(a['scanTime'])));
-
         Map<String, dynamic>? checkIn, checkOut;
         for (var record in data) {
           if (record['status'] == 'CheckIn' && checkIn == null) {
@@ -264,7 +235,6 @@ class _HomeScreenState extends State<HomeScreen> {
           }
           if (checkIn != null && checkOut != null) break;
         }
-
         setState(() {
           workShifts = [
             {
@@ -315,7 +285,6 @@ class _HomeScreenState extends State<HomeScreen> {
       );
       return;
     }
-
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
@@ -331,17 +300,14 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => WorkHistoryScreen(token: widget.token),
+        builder: (context) => WeeklyShiftSelectionScreenHistory(token: widget.token),
       ),
     );
   }
 
   void _navigateToAttendanceHistory() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => AttendanceHistoryScreen(token: widget.token),
-      ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Chức năng lịch sử chấm công chưa được triển khai')),
     );
   }
 
@@ -479,6 +445,13 @@ class _HomeScreenState extends State<HomeScreen> {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
         ),
         child: Column(
           children: [
@@ -498,102 +471,238 @@ class _HomeScreenState extends State<HomeScreen> {
     if (userData == null) {
       return const Center(child: Text("Không tìm thấy người dùng"));
     }
-
     return Scaffold(
       body: Container(
-        color: Colors.white,
-        padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 16, 16, 16),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  GestureDetector(
-                    child: CircleAvatar(
-                      radius: 28,
-                      backgroundColor: Colors.grey.shade200,
-                      backgroundImage: _buildAvatarFromBase64(userData?['img']),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0xFFFFE0B2), // cam nhạt ở trên
+              Color(0xFFFFF3E0), // vàng nhạt ở giữa
+              Colors.white,      // trắng ở dưới cùng
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header with User Info
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: refreshAvatar,
+                      child: CircleAvatar(
+                        radius: 32,
+                        backgroundColor: Colors.grey.shade200,
+                        backgroundImage: _buildAvatarFromBase64(userData?['img']),
+                        child: isLoadingAvatar
+                            ? const CircularProgressIndicator(strokeWidth: 2)
+                            : null,
+                      ),
                     ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Xin chào, ${userData!['fullName'] ?? widget.username}",
+                            style: const TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            positionName ?? 'Cộng tác viên kinh doanh',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh, color: Colors.orange),
+                      onPressed: refreshAvatar,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 30),
+                // Check-in/Check-out Card
+                Card(
+                  elevation: 4,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.grey.withOpacity(0.1),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          "Xin chào,",
-                          style: TextStyle(fontSize: 16, color: Colors.black87),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          userData!['fullName'] ?? widget.username,
-                          style: const TextStyle(
+                          "Chấm công hôm nay",
+                          style: TextStyle(
                             fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.black,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                          textAlign: TextAlign.left,
+                        ),
+                        const SizedBox(height: 30),
+                        Center(
+                          child: GestureDetector(
+                            onTap: hasCheckedIn && hasCheckedOut ? null : showCheckInOptions,
+                            child: Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              decoration: BoxDecoration(
+                                color: hasCheckedIn && hasCheckedOut
+                                    ? Colors.grey.shade300
+                                    : Colors.orange,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
+                                  const SizedBox(width: 12),
+                                  Text(
+                                    hasCheckedIn && hasCheckedOut
+                                        ? "Đã hoàn thành chấm công"
+                                        : "Chấm công",
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 18,
+                                      color: Colors.white,
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          positionName ?? 'Cộng tác viên kinh doanh',
-                          style: const TextStyle(fontSize: 14, color: Colors.grey),
-                        ),
+                        const SizedBox(height: 16),
                       ],
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              GestureDetector(
-                onTap: showCheckInOptions,
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 24),
-                  decoration: BoxDecoration(
-                    color: Colors.orange,
-                    borderRadius: BorderRadius.circular(8),
+                ),
+                const SizedBox(height: 24),
+                // Quick Actions
+                const Text(
+                  "Hành động nhanh",
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _quickActionButton(
+                        icon: Icons.calendar_today,
+                        label: "Lịch làm việc",
+                        color: Colors.orange.shade100,
+                        onTap: _navigateToWorkHistory,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _quickActionButton(
+                        icon: Icons.history,
+                        label: "Lịch sử chấm công",
+                        color: Colors.orange.shade100,
+                        onTap: _navigateToAttendanceHistory,
+                      ),
+                    ),
+                  ],
+                ),
+                // Work Shift Information
+                const SizedBox(height: 30),
+                // Greeting message with beautiful design
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.grey.withOpacity(0.1),
+                        blurRadius: 8,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
                     children: [
-                      Icon(Icons.qr_code_scanner, color: Colors.white, size: 28),
-                      SizedBox(width: 12),
-                      Text(
-                        "Chấm công",
-                        style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 20,
-                          color: Colors.white,
+                      // Beautiful image from Unsplash
+                      const SizedBox(height: 20),
+                      // Ảnh cục bộ hello.jpg
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.asset(
+                          'assets/tay.jpg', // Đường dẫn tới ảnh trong assets
+                          height: 150,
+                          width: double.infinity,
+                          fit: BoxFit.contain,
                         ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Beautiful greeting text
+                      Text(
+                        "Chúc bạn một ngày làm việc hiệu quả!",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade700,
+                          shadows: [
+                            Shadow(
+                              color: Colors.orange.withOpacity(0.15),
+                              blurRadius: 2,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
+                          letterSpacing: 0.5,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Hãy tận hưởng từng khoảnh khắc tại nơi làm việc của bạn",
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: Colors.grey.shade600,
+                          fontStyle: FontStyle.italic,
+                          height: 1.4,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
                     ],
                   ),
                 ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                    child: _quickActionButton(
-                      icon: Icons.calendar_today,
-                      label: "Lịch làm việc",
-                      color: Colors.orange.shade100,
-                      onTap: _navigateToWorkHistory,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _quickActionButton(
-                      icon: Icons.history,
-                      label: "Lịch sử chấm công",
-                      color: Colors.orange.shade100,
-                      onTap: _navigateToAttendanceHistory,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+                const SizedBox(height: 30),
+              ],
+            ),
           ),
         ),
       ),
@@ -617,7 +726,6 @@ class _HomeScreenState extends State<HomeScreen> {
       NotificationPage(token: widget.token),
       PersonalPage(),
     ];
-
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.white,

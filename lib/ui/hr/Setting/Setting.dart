@@ -6,6 +6,7 @@ import 'package:sem4_fe/ui/Hr/Setting/Navbar/HRWorkScheduleScreen.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/Attendance.dart';
 import 'package:sem4_fe/ui/User/Individual/Navbar/histotyqr.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/LeaveRegistration.dart';
+import 'package:sem4_fe/ui/Hr/HRNotification/HRNotificationScreen.dart';
 import 'package:sem4_fe/ui/Hr/Setting/Navbar/AttendanceManagementScreen.dart';
 import 'package:sem4_fe/ui/User/Propose/Navbar/AttendanceAppealPage.dart';
 
@@ -41,6 +42,7 @@ class _HrSettingsPageState extends State<HrSettingsPage> {
     SettingItem(Icons.table_chart, 'Bảng công'), // ✅ đổi icon phù hợp
     SettingItem(Icons.history, 'Lịch sử chấm công'), // ✅ đổi icon phù hợp
     SettingItem(Icons.edit_note, 'Giải trình chấm công'),
+    SettingItem(Icons.notifications, 'Thông báo'),
     SettingItem(Icons.info_outline, 'Thông tin ứng dụng'),
   ];
 
@@ -142,6 +144,8 @@ class _HrSettingsPageState extends State<HrSettingsPage> {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => AttendanceHistoryScreen(token: widget.token)));
                 } else if (item.title == 'Đơn xin nghỉ') {
                   Navigator.push(context, MaterialPageRoute(builder: (_) => LeaveRegistrationPage(token: widget.token)));
+                } else if (item.title == 'Thông báo') {
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => HRNotificationScreen(token: widget.token)));
                 } else if (item.title == 'Thông tin ứng dụng') {
                   showDialog(
                     context: context,

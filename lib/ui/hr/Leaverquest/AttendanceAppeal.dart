@@ -48,8 +48,8 @@ class _HRAttendanceAppealScreenState extends State<HRAttendanceAppealScreen> {
       },
       body: jsonEncode({
         'status': status,
-        'reviewedBy': 'admin-id', // cập nhật id thực tế
-        'note': 'Xét duyệt bởi HR',
+        'reviewedBy': getReviewerIdFromToken(widget.token), // Lấy ID người xét duyệt từ token
+        'note': 'Xét duyệt bởi HR', // Có thể tùy chỉnh note
       }),
     );
 
@@ -63,6 +63,13 @@ class _HRAttendanceAppealScreenState extends State<HRAttendanceAppealScreen> {
     }
   }
 
+// Hàm lấy ID người xét duyệt từ token (cần điều chỉnh theo cấu trúc token của bạn)
+  String getReviewerIdFromToken(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) return 'unknown';
+    final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
+    return payload['sub'] ?? 'unknown'; // Thay 'sub' bằng trường chứa ID trong token của bạn
+  }
   @override
   Widget build(BuildContext context) {
     return Scaffold(

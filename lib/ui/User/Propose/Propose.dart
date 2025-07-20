@@ -102,7 +102,7 @@ class _ProposalPageState extends State<ProposalPage> {
           ),
           buildProposalItem(
             'Theo dõi ca OT ',
-            Icons.sync_alt,
+            Icons.bar_chart,
             Colors.green,
                 () {
               if (_token == null || _token!.isEmpty) {

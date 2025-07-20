@@ -44,97 +44,110 @@ class _HomeHRPageState extends State<HomeHRPage> {
   Future<void> fetchAttendanceStats() async {
     setState(() => isLoadingStats = true);
     try {
+      final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
+
+      // 1. Lấy danh sách tất cả employee với role là User
+      final roleId = await getUserRoleId();
+      if (roleId == null) throw Exception('Không tìm thấy roleId');
+
+      final users = await fetchUsers(roleId: roleId);
+      final allEmployeeIds = <String>{};
+
+      for (var user in users) {
+        final empIdRes = await http.get(
+          Uri.parse(Constants.employeeIdByUserIdUrl(user['userId'])),
+          headers: {'Authorization': 'Bearer ${widget.token}'},
+        );
+        if (empIdRes.statusCode == 200 && empIdRes.body.trim().isNotEmpty) {
+          allEmployeeIds.add(empIdRes.body.trim());
+        }
+      }
+
+      final totalEmployees = allEmployeeIds.length;
+
+      // 2. Lấy danh sách bản ghi chấm công
       final url = Uri.parse('${Constants.baseUrl}/api/attendances');
-      final response = await http.get(
-        url,
-        headers: {'Authorization': 'Bearer ${widget.token}'},
-      );
+      final response = await http.get(url, headers: {'Authorization': 'Bearer ${widget.token}'});
 
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
 
-        print('Tổng số bản ghi: ${data.length}');
-        for (int i = 0; i < data.length; i++) {
-          print('Bản ghi $i: ${json.encode(data[i])}');
-        }
+        int present = 0, lateCount = 0;
+        final checkedInSet = <String>{};
 
-        final today = DateFormat('yyyy-MM-dd').format(DateTime.now());
-        print('Ngày hôm nay: $today');
+        for (var item in data) {
+          final date = item['attendanceDate'];
+          final status = item['status'];
+          final empId = item['employee']?['employeeId']?.toString();
 
-        int presentCount = 0;
-        int lateCount = 0;
-        int absentCount = 0;
-        Set<String> employeeIds = {};
+          if (empId == null || date == null || status == null) continue;
 
-        for (var attendance in data) {
-          final attendanceDate = attendance['attendanceDate']?.toString();
-          final status = attendance['status']?.toString();
-          final employeeId = attendance['employee']?['employeeId']?.toString();
+          final dateFormatted = DateFormat('yyyy-MM-dd').format(DateTime.parse(date));
+          if (dateFormatted != today) continue;
 
-          // Kiểm tra dữ liệu hợp lệ
-          if (attendanceDate == null || status == null || employeeId == null) {
-            print('Bản ghi không hợp lệ: ${json.encode(attendance)}');
-            continue;
-          }
-
-          // Chuyển đổi định dạng ngày nếu cần
-          String formattedAttendanceDate;
-          try {
-            formattedAttendanceDate = DateFormat('yyyy-MM-dd')
-                .format(DateTime.parse(attendanceDate));
-          } catch (e) {
-            print('Lỗi định dạng ngày: $attendanceDate, lỗi: $e');
-            continue;
-          }
-
-          // Chỉ xử lý bản ghi của ngày hiện tại
-          if (formattedAttendanceDate == today) {
-            employeeIds.add(employeeId);
-            if (status == 'Present') presentCount++;
-            else if (status == 'Late') lateCount++;
-            else if (status == 'Absent') absentCount++;
+          if (status == 'Present' || status == 'Late') {
+            checkedInSet.add(empId);
+            if (status == 'Present') present++;
+            if (status == 'Late') lateCount++;
           }
         }
 
         setState(() {
-          checkedIn = presentCount;
+          total = totalEmployees;
+          checkedIn = checkedInSet.length;
           late = lateCount;
-          absent = absentCount;
-          total = employeeIds.length;
+          absent = totalEmployees - checkedInSet.length;
           isLoadingStats = false;
         });
-
-        print('Thống kê: Đã chấm công=$presentCount, Đi muộn=$lateCount, '
-            'Vắng mặt=$absentCount, Tổng số=${employeeIds.length}');
-
-        if (presentCount == 0 && lateCount == 0 && absentCount == 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Không có dữ liệu chấm công cho hôm nay'),
-              backgroundColor: Colors.grey,
-            ),
-          );
-        }
       } else {
-        print('Lỗi lấy dữ liệu attendance: ${response.statusCode} - ${response.body}');
-        setState(() => isLoadingStats = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Lỗi tải dữ liệu: ${response.statusCode}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+        throw Exception('Lỗi tải dữ liệu chấm công');
       }
     } catch (e) {
       print('Lỗi fetchAttendanceStats: $e');
       setState(() => isLoadingStats = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Lỗi tải dữ liệu: $e'),
-          backgroundColor: Colors.red,
-        ),
+        SnackBar(content: Text('Lỗi thống kê: $e'), backgroundColor: Colors.red),
       );
     }
+  }
+
+  Future<String?> getUserRoleId() async {
+    try {
+      final response = await http.get(
+        Uri.parse(Constants.rolesUrl),
+        headers: {'Authorization': 'Bearer ${widget.token}'},
+      );
+
+      if (response.statusCode == 200) {
+        final roles = jsonDecode(response.body)['result'] ?? [];
+        final userRole = roles.firstWhere(
+              (r) => r['roleName']?.toString().toLowerCase() == 'user',
+          orElse: () => null,
+        );
+        return userRole?['roleId']?.toString();
+      }
+    } catch (e) {
+      print('Lỗi getUserRoleId: $e');
+    }
+    return null;
+  }
+
+  Future<List<dynamic>> fetchUsers({String? roleId}) async {
+    try {
+      final uri = Uri.parse(Constants.homeUrl);
+      final response = await http.get(
+        uri,
+        headers: {'Authorization': 'Bearer ${widget.token}'},
+      );
+
+      if (response.statusCode == 200) {
+        final usersRaw = jsonDecode(response.body)['result'] ?? [];
+        return usersRaw.where((u) => u['role']?.toString() == roleId).toList();
+      }
+    } catch (e) {
+      print('Lỗi fetchUsers: $e');
+    }
+    return [];
   }
 
   void _showCheckInOptions(BuildContext context) {
@@ -670,7 +683,7 @@ class _HomeHRPageState extends State<HomeHRPage> {
           _buildBottomNavItem(Icons.people_alt_rounded, 'Nhân viên'),
           _buildBottomNavItem(Icons.schedule_rounded, 'Ca làm'),
           _buildBottomNavItem(Icons.note_alt_rounded, 'Quản lý đơn'),
-          _buildBottomNavItem(Icons.settings_rounded, 'Quản lý'), // Sửa nhãn và icon
+          _buildBottomNavItem(Icons.admin_panel_settings, 'Quản lý') // Sửa nhãn và icon
         ],
       ),
     );

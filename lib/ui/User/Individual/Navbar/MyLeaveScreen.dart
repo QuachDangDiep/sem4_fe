@@ -92,12 +92,30 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
 
   Widget _buildLeaveCard(LeaveRequestModel leave) {
     return Card(
+      elevation: 3,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: ListTile(
-        leading: Icon(Icons.calendar_month, color: Colors.orange),
-        title: Text('Đơn nghỉ phép (${leave.status})'),
-        subtitle: Text(
-          'Từ ${DateFormat('dd/MM/yyyy').format(leave.startDate)} đến ${DateFormat('dd/MM/yyyy').format(leave.endDate)}',
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.calendar_month, color: Colors.orange.shade400),
+                const SizedBox(width: 8),
+                Text(
+                  'Đơn nghỉ phép',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const Spacer(),
+                _buildStatusChip(leave.status),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text('🗓 Từ: ${DateFormat('dd/MM/yyyy').format(leave.startDate)}'),
+            Text('📅 Đến: ${DateFormat('dd/MM/yyyy').format(leave.endDate)}'),
+          ],
         ),
       ),
     );
@@ -105,77 +123,104 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
 
   Widget _buildAppealCard(AttendanceAppealModel appeal) {
     return Card(
+      elevation: 3,
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Column(
-        children: [
-          ListTile(
-            leading: Icon(Icons.edit_note, color: Colors.blue),
-            title: Text('Đơn giải trình (${appeal.status})'),
-            subtitle: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Text('📝 Lý do: ${appeal.reason}'),
-                Text('📅 Ngày gửi: ${DateFormat('dd/MM/yyyy').format(appeal.createdAt)}'),
-                if (appeal.reviewedBy != null)
-                  Text('👤 Duyệt bởi: ${appeal.reviewedBy!}'),
-                if (appeal.reviewedAt != null)
-                  Text('🕒 Duyệt lúc: ${DateFormat('dd/MM/yyyy HH:mm').format(appeal.reviewedAt!)}'),
-                if (appeal.note != null && appeal.note!.isNotEmpty)
-                  Text('🗒️ Ghi chú: ${appeal.note!}'),
+                Icon(Icons.edit_note, color: Colors.blue.shade400),
+                const SizedBox(width: 8),
+                Text(
+                  'Đơn giải trình',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                const Spacer(),
+                _buildStatusChip(appeal.status),
               ],
             ),
-          ),
-          if (appeal.evidence != null && appeal.evidence!.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange.shade50, // màu nền nhẹ
-                  foregroundColor: Colors.orange, // màu chữ/icon
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    side: BorderSide(color: Colors.orange.shade200),
+            const SizedBox(height: 8),
+            Text('📝 Lý do: ${appeal.reason}'),
+            Text('📅 Ngày gửi: ${DateFormat('dd/MM/yyyy').format(appeal.createdAt)}'),
+            if (appeal.reviewedBy != null)
+              Text('👤 Duyệt bởi: ${appeal.reviewedBy!}'),
+            if (appeal.reviewedAt != null)
+              Text('🕒 Duyệt lúc: ${DateFormat('dd/MM/yyyy HH:mm').format(appeal.reviewedAt!)}'),
+            if (appeal.note != null && appeal.note!.isNotEmpty)
+              Text('🗒️ Ghi chú: ${appeal.note!}'),
+            const SizedBox(height: 8),
+            if (appeal.evidence != null && appeal.evidence!.isNotEmpty)
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.orange.shade50,
+                    foregroundColor: Colors.orange,
+                    elevation: 2,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(color: Colors.orange.shade200),
+                    ),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                ),
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    builder: (_) => AlertDialog(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      title: const Text('Ảnh bằng chứng'),
-                      content: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: Image.memory(
-                          base64Decode(appeal.evidence!),
-                          fit: BoxFit.contain,
-                        ),
-                      ),
-                      actions: [
-                        TextButton.icon(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close),
-                          label: const Text('Đóng'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.orange,
+                  onPressed: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        title: const Text('Ảnh bằng chứng',style: TextStyle(color: Colors.orange)),
+                        content: ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.memory(
+                            base64Decode(appeal.evidence!),
+                            fit: BoxFit.contain,
                           ),
                         ),
-                      ],
-                    ),
-                  );
-                },
-                icon: const Icon(Icons.image),
-                label: const Text('Xem bằng chứng'),
+                        actions: [
+                          TextButton.icon(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close),
+                            label: const Text('Đóng'),
+                            style: TextButton.styleFrom(foregroundColor: Colors.orange),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.image),
+                  label: const Text('Xem bằng chứng'),
+                ),
               ),
-            )
-        ],
+          ],
+        ),
       ),
     );
   }
+
+  Widget _buildStatusChip(String status) {
+    Color color;
+    switch (status.toLowerCase()) {
+      case 'approved':
+        color = Colors.green;
+        break;
+      case 'rejected':
+        color = Colors.red;
+        break;
+      case 'pending':
+      default:
+        color = Colors.orange;
+    }
+
+    return Chip(
+      label: Text(status, style: const TextStyle(color: Colors.white)),
+      backgroundColor: color,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -189,23 +234,39 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: DropdownButton<String>(
-              hint: const Text("Chọn trạng thái"),
-              value: selectedStatus,
-              isExpanded: true,
-              items: ['Approved', 'Pending', 'Rejected']
-                  .map((status) => DropdownMenuItem(
-                value: status,
-                child: Text(status),
-              ))
-                  .toList(),
-              onChanged: (value) {
-                setState(() {
-                  selectedStatus = value;
-                  _fetchData(token, _employeeId!, status: value);
-                });
-              },
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: DropdownButton<String>(
+                hint: const Text("Chọn trạng thái"),
+                value: selectedStatus,
+                isExpanded: true,
+                items: ['Approved', 'Pending', 'Rejected']
+                    .map(
+                      (status) => DropdownMenuItem(
+                    value: status,
+                    child: Text(
+                      status,
+                      style: TextStyle(
+                        color: _getStatusColor(status),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() {
+                    selectedStatus = value!;
+                    _fetchData(widget.token, _employeeId!, status: value);
+                  });
+                },
+              ),
             ),
           ),
           Expanded(
@@ -229,6 +290,18 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
         ],
       ),
     );
+  }
+}
+
+Color _getStatusColor(String status) {
+  switch (status.toLowerCase()) {
+    case 'approved':
+      return Colors.green;
+    case 'rejected':
+      return Colors.red;
+    case 'pending':
+    default:
+      return Colors.orange;
   }
 }
 

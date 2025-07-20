@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
@@ -19,11 +18,11 @@ class PersonalPage extends StatelessWidget {
   const PersonalPage({Key? key}) : super(key: key);
 
   Widget buildMenuItem(
-    String title,
-    IconData icon,
-    VoidCallback onTap, {
-    Color? backgroundColor,
-  }) {
+      String title,
+      IconData icon,
+      VoidCallback onTap, {
+        Color? backgroundColor,
+      }) {
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: backgroundColor ?? Colors.blue,
@@ -55,58 +54,58 @@ class PersonalPage extends StatelessWidget {
                 context: context,
                 builder:
                     (_) => AlertDialog(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  title: Row(
+                    children: const [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        color: Colors.orange,
                       ),
-                      title: Row(
-                        children: const [
-                          Icon(
-                            Icons.warning_amber_rounded,
-                            color: Colors.orange,
-                          ),
-                          SizedBox(width: 8),
-                          Text('Xác nhận đăng xuất'),
-                        ],
-                      ),
-                      content: const Text(
-                        'Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng không?',
-                      ),
-                      actionsPadding: const EdgeInsets.only(
-                        right: 12,
-                        bottom: 8,
-                      ),
-                      actions: [
-                        TextButton(
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.grey[700],
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('Hủy'),
+                      SizedBox(width: 8),
+                      Text('Xác nhận đăng xuất'),
+                    ],
+                  ),
+                  content: const Text(
+                    'Bạn có chắc chắn muốn đăng xuất khỏi ứng dụng không?',
+                  ),
+                  actionsPadding: const EdgeInsets.only(
+                    right: 12,
+                    bottom: 8,
+                  ),
+                  actions: [
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.grey[700],
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
                         ),
-                        TextButton(
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.white,
-                            backgroundColor: Colors.orange,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                          onPressed: () {
-                            Navigator.pop(context);
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => LoginScreen(),
-                              ),
-                            );
-                          },
-                          child: const Text('Đăng xuất'),
-                        ),
-                      ],
+                      ),
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Hủy'),
                     ),
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        backgroundColor: Colors.orange,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => LoginScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text('Đăng xuất'),
+                    ),
+                  ],
+                ),
               );
             },
           ),
@@ -160,10 +159,10 @@ class PersonalPage extends StatelessWidget {
                 MaterialPageRoute(
                   builder:
                       (context) => PersonalInfoScreen(
-                        token: token,
-                        employeeId: employeeId,
-                        employeeData: employeeData,
-                      ),
+                    token: token,
+                    employeeId: employeeId,
+                    employeeData: employeeData,
+                  ),
                 ),
               );
             } catch (e) {
@@ -189,8 +188,8 @@ class PersonalPage extends StatelessWidget {
                 MaterialPageRoute(
                   builder:
                       (context) => AttendanceHistoryScreen(
-                        token: token,
-                      ), // Hoặc tên class đúng trong historyqr.dart
+                    token: token,
+                  ), // Hoặc tên class đúng trong historyqr.dart
                 ),
               );
             } catch (e) {
