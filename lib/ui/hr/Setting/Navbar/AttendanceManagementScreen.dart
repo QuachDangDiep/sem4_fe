@@ -20,11 +20,16 @@ class _AttendanceManagementScreenState extends State<AttendanceManagementScreen>
   List<dynamic> employeeList = [];
   bool isLoading = true;
   bool isLoadingStats = false;
+  bool _showStats = true;
+
 
   int checkedIn = 0;
   int late = 0;
   int absent = 0;
   int total = 0;
+  DateTime? _fromDate;
+  DateTime? _toDate;
+
 
   String? selectedEmployeeId;
   final Color _primaryColor = Colors.orange;
@@ -216,8 +221,31 @@ class _AttendanceManagementScreenState extends State<AttendanceManagementScreen>
   }
 
   List<dynamic> getFilteredAttendance() {
-    if (selectedEmployeeId == null || selectedEmployeeId!.isEmpty) return attendanceList;
-    return attendanceList.where((e) => e['employee']?['employeeId'] == selectedEmployeeId).toList();
+    List<dynamic> filtered = (selectedEmployeeId == null || selectedEmployeeId!.isEmpty)
+        ? List.from(attendanceList)
+        : attendanceList.where((e) => e['employee']?['employeeId'] == selectedEmployeeId).toList();
+
+    if (_fromDate != null) {
+      filtered = filtered.where((e) {
+        final date = DateTime.tryParse(e['attendanceDate'] ?? '');
+        return date != null && date.isAfter(_fromDate!.subtract(const Duration(days: 1)));
+      }).toList();
+    }
+
+    if (_toDate != null) {
+      filtered = filtered.where((e) {
+        final date = DateTime.tryParse(e['attendanceDate'] ?? '');
+        return date != null && date.isBefore(_toDate!.add(const Duration(days: 1)));
+      }).toList();
+    }
+
+    filtered.sort((a, b) {
+      final dateA = DateTime.tryParse(a['attendanceDate'] ?? '') ?? DateTime(1970);
+      final dateB = DateTime.tryParse(b['attendanceDate'] ?? '') ?? DateTime(1970);
+      return dateB.compareTo(dateA);
+    });
+
+    return filtered;
   }
 
   Widget buildDropdown() {
@@ -227,24 +255,43 @@ class _AttendanceManagementScreenState extends State<AttendanceManagementScreen>
         value: selectedEmployeeId,
         isExpanded: true,
         decoration: InputDecoration(
+          filled: true,
+          fillColor: Colors.grey[100],
           labelText: 'Chọn nhân viên',
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+          labelStyle: TextStyle(color: Colors.grey[700]),
+          floatingLabelStyle: TextStyle(color: _primaryColor),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide.none,
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: _primaryColor, width: 2),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[400]!, width: 1),
+          ),
         ),
+        dropdownColor: Colors.white,
+        icon: Icon(Icons.arrow_drop_down, color: _primaryColor),
+        style: TextStyle(color: Colors.black87, fontSize: 16),
         items: employeeList.map((emp) {
           final id = emp['employeeId'].toString();
-          return DropdownMenuItem(value: id, child: Text(emp['fullName'] ?? 'Không rõ'));
+          return DropdownMenuItem(
+            value: id,
+            child: Text(emp['fullName'] ?? 'Không rõ', style: TextStyle(fontSize: 16)),
+          );
         }).toList(),
         onChanged: (value) async {
           setState(() => selectedEmployeeId = value);
 
-          // Lấy thông tin nhân viên được chọn
           final selectedEmployee = employeeList.firstWhere(
                 (e) => e['employeeId'].toString() == value,
             orElse: () => null,
           );
 
           if (selectedEmployee != null) {
-            // Hiển thị dialog hoặc bottom sheet để chọn giữa 2 trang
             showModalBottomSheet(
               context: context,
               builder: (_) {
@@ -255,7 +302,7 @@ class _AttendanceManagementScreenState extends State<AttendanceManagementScreen>
                         leading: const Icon(Icons.history),
                         title: const Text('Xem lịch sử chấm công'),
                         onTap: () {
-                          Navigator.pop(context); // đóng bottom sheet
+                          Navigator.pop(context);
                           Navigator.push(
                             context,
                             MaterialPageRoute(
@@ -292,6 +339,117 @@ class _AttendanceManagementScreenState extends State<AttendanceManagementScreen>
             );
           }
         },
+      ),
+    );
+  }
+
+  Widget buildDateFilter() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _fromDate ?? DateTime.now(),
+                  firstDate: DateTime(2022),
+                  lastDate: DateTime(2100),
+                  builder: (context, child) {
+                    return Theme(
+                      data: Theme.of(context).copyWith(
+                        colorScheme: ColorScheme.light(
+                          primary: Colors.orange, // màu cam chủ đạo
+                          onPrimary: Colors.white,
+                          onSurface: Colors.black87,
+                        ),
+                      ),
+                      child: child!,
+                    );
+                  },
+                );
+                if (picked != null) {
+                  setState(() => _fromDate = picked);
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  border: Border.all(color: Colors.orange, width: 1.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, color: Colors.orange, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _fromDate != null ? DateFormat('dd/MM/yyyy').format(_fromDate!) : 'Từ ngày',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: _fromDate != null ? Colors.black87 : Colors.orange.shade300,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: GestureDetector(
+              onTap: () async {
+                final picked = await showDatePicker(
+                  context: context,
+                  initialDate: _toDate ?? DateTime.now(),
+                  firstDate: DateTime(2022),
+                  lastDate: DateTime(2100),
+                  builder: (context, child) {
+                    return Theme(
+                      data: Theme.of(context).copyWith(
+                        colorScheme: ColorScheme.light(
+                          primary: Colors.orange,
+                          onPrimary: Colors.white,
+                          onSurface: Colors.black87,
+                        ),
+                      ),
+                      child: child!,
+                    );
+                  },
+                );
+                if (picked != null) {
+                  setState(() => _toDate = picked);
+                }
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  border: Border.all(color: Colors.orange, width: 1.3),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.calendar_today, color: Colors.orange, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        _toDate != null ? DateFormat('dd/MM/yyyy').format(_toDate!) : 'Đến ngày',
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: _toDate != null ? Colors.black87 : Colors.orange.shade300,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -382,19 +540,20 @@ class _AttendanceManagementScreenState extends State<AttendanceManagementScreen>
           const SizedBox(height: 12),
           isLoadingStats
               ? const Center(child: CircularProgressIndicator())
-              : GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            childAspectRatio: 1.4,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
+              : Wrap(
+            spacing: 12,
+            runSpacing: 12,
             children: [
               _buildStatCard('Đã chấm công', '$checkedIn', Colors.green),
               _buildStatCard('Đi muộn', '$late', Colors.orange),
               _buildStatCard('Vắng mặt', '$absent', Colors.red),
               _buildStatCard('Tổng số', '$total', _primaryColor),
-            ],
+            ].map((card) {
+              return SizedBox(
+                width: MediaQuery.of(context).size.width / 2 - 24,
+                child: card,
+              );
+            }).toList(),
           ),
         ],
       ),
@@ -404,18 +563,32 @@ class _AttendanceManagementScreenState extends State<AttendanceManagementScreen>
   Widget _buildStatCard(String title, String value, Color color) {
     return Container(
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.4)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.15),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+        border: Border.all(color: color.withOpacity(0.3)),
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 12),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.person, color: color, size: 32),
-          const SizedBox(height: 12),
-          Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
-          Text(title, style: TextStyle(fontSize: 14, color: color)),
+          Icon(Icons.person_pin, color: color, size: 36),
+          const SizedBox(height: 10),
+          Text(
+            value,
+            style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title,
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.grey[700]),
+          ),
         ],
       ),
     );
@@ -425,11 +598,27 @@ class _AttendanceManagementScreenState extends State<AttendanceManagementScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Quản lý chấm công'), backgroundColor: _primaryColor, centerTitle: true),
+      appBar: AppBar(
+        title: const Text('Quản lý chấm công'),
+        backgroundColor: _primaryColor,
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: Icon(_showStats ? Icons.visibility_off : Icons.visibility, color: Colors.white),
+            onPressed: () {
+              setState(() {
+                _showStats = !_showStats;
+              });
+            },
+            tooltip: _showStats ? 'Ẩn thống kê' : 'Hiện thống kê',
+          ),
+        ],
+      ),
       body: Column(
         children: [
-          buildStatistics(),
+          if (_showStats) buildStatistics(),  // chỉ hiển thị nếu _showStats = true
           buildDropdown(),
+          buildDateFilter(),
           Expanded(child: buildAttendanceList()),
         ],
       ),

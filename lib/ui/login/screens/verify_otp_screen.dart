@@ -23,7 +23,7 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
   void initState() {
     super.initState();
     for (var node in _focusNodes) {
-      node.addListener(() => setState(() {}));
+      node.addListener(() => setState(() {})); // Cập nhật khi focus thay đổi
     }
   }
 
@@ -86,13 +86,13 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
           fillColor: Colors.white,
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.orange.shade700, width: 2),
+            borderSide: const BorderSide(color: Colors.orange, width: 2),
           ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(
               color: _focusNodes[index].hasFocus
-                  ? Colors.orange.shade700
+                  ? Colors.orange
                   : Colors.grey.shade300,
             ),
           ),
@@ -194,20 +194,18 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                               maxWidth: 460,
                               minHeight: 400,
                             ),
-                            padding: const EdgeInsets.only(
-                                top: 12, left: 12, right: 16, bottom: 16),
+                            padding: const EdgeInsets.all(24),
                             margin: const EdgeInsets.only(bottom: 70),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
                               border: Border.all(
-                                  color: Colors.orange.shade400, width: 2),
+                                  color: const Color(0xFFFF9800), width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
+                                  color: Colors.black.withOpacity(0.15),
                                   spreadRadius: 4,
                                   blurRadius: 12,
-                                  offset: const Offset(0, 4),
                                 ),
                               ],
                             ),
@@ -220,64 +218,54 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                                       icon: const Icon(Icons.arrow_back,
                                           color: Colors.orange),
                                       onPressed: () => Navigator.pop(context),
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(),
                                     ),
                                     const SizedBox(width: 4),
                                     const Text(
                                       'Xác thực mã OTP',
                                       style: TextStyle(
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.black87,
-                                      ),
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold),
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 8),
-                                Text(
+                                const SizedBox(height: 24),
+                                const Text(
                                   'Nhập mã OTP gồm 6 chữ số được gửi tới email:',
-                                  style: TextStyle(
-                                    color: Colors.orange.shade700,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                  style: TextStyle(color: Colors.orange),
                                 ),
-                                const SizedBox(height: 6),
+                                const SizedBox(height: 8),
                                 Text(
                                   widget.email,
                                   style: const TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                    color: Colors.orange,
-                                  ),
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF2424E6)),
                                 ),
-                                const SizedBox(height: 32),
+                                const SizedBox(height: 30),
                                 Row(
                                   mainAxisAlignment:
                                   MainAxisAlignment.spaceEvenly,
-                                  children: List.generate(6, _buildOtpField),
+                                  children:
+                                  List.generate(6, _buildOtpField),
                                 ),
-                                const SizedBox(height: 32),
+                                const SizedBox(height: 30),
                                 SizedBox(
                                   width: double.infinity,
                                   height: 50,
                                   child: ElevatedButton(
                                     onPressed: _verifyOtp,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.orange.shade700,
-                                      foregroundColor: Colors.white,
+                                      backgroundColor:
+                                      const Color(0xFFFF9800),
                                       shape: RoundedRectangleBorder(
                                         borderRadius:
                                         BorderRadius.circular(12),
                                       ),
-                                      elevation: 3,
                                     ),
                                     child: const Text(
                                       'Xác minh',
                                       style: TextStyle(
                                         fontSize: 16,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.bold,
                                         color: Colors.white,
                                       ),
                                     ),
@@ -285,16 +273,6 @@ class _VerifyOtpScreenState extends State<VerifyOtpScreen> {
                                 ),
                               ],
                             ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: -20,
-                          left: 0,
-                          right: 0,
-                          child: Image.asset(
-                            'assets/hr.png',
-                            height: 200,
-                            fit: BoxFit.contain,
                           ),
                         ),
                       ],

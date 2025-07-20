@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'verify_otp_screen.dart';
+import 'package:sem4_fe/Service/Constants.dart';
 
 class SendOtpScreen extends StatefulWidget {
   @override
@@ -17,7 +18,7 @@ class _SendOtpScreenState extends State<SendOtpScreen> {
   void initState() {
     super.initState();
     _emailFocusNode.addListener(() {
-      setState(() {});
+      setState(() {}); // Cập nhật màu khi focus thay đổi
     });
   }
 
@@ -40,7 +41,7 @@ class _SendOtpScreenState extends State<SendOtpScreen> {
 
     setState(() => _isLoading = true);
 
-    final url = Uri.parse('http://10.0.2.2:8080/api/password-reset/send-otp');
+    final url = Uri.parse(Constants.sendotpUrl);
 
     try {
       final response = await http.post(
@@ -134,69 +135,48 @@ class _SendOtpScreenState extends State<SendOtpScreen> {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(20),
                           child: Container(
-                            width: MediaQuery.of(context).size.width * 0.88,
-                            constraints: const BoxConstraints(
-                              maxWidth: 460,
-                              minHeight: 400,
-                            ),
+                            constraints: const BoxConstraints(minHeight: 400),
                             padding: const EdgeInsets.all(24),
                             margin: const EdgeInsets.only(bottom: 70),
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.orange.shade400, width: 2),
+                              border: Border.all(color: const Color(0xFFFF9800), width: 2),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.2),
+                                  color: Colors.black.withOpacity(0.15),
                                   spreadRadius: 4,
                                   blurRadius: 12,
-                                  offset: const Offset(0, 4),
                                 ),
                               ],
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Align(
-                                  alignment: Alignment.topLeft,
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      GestureDetector(
-                                        onTap: () => Navigator.pop(context),
-                                        child: const Icon(Icons.arrow_back, color: Colors.orange),
-                                      ),
-                                      const SizedBox(width: 8),
-                                      const Text(
-                                        'Lấy mã xác thực',
-                                        style: TextStyle(
-                                          fontSize: 22,
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.black87,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                Row(
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.arrow_back, color: Colors.orange),
+                                      onPressed: () => Navigator.pop(context),
+                                    ),
+                                    const SizedBox(width: 4),
+                                    const Text(
+                                      'Lấy mã xác thực',
+                                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                                    ),
+                                  ],
                                 ),
                                 const SizedBox(height: 12),
-                                Text(
+                                const Text(
                                   'Nhập email của bạn để nhận mã xác thực',
-                                  style: TextStyle(
-                                    color: Colors.orange.shade700,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                  style: TextStyle(color: Colors.orange),
                                 ),
                                 const SizedBox(height: 24),
                                 const Text(
                                   'Email xác thực (*)',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 16,
-                                    color: Colors.black87,
-                                  ),
+                                  style: TextStyle(fontWeight: FontWeight.bold),
                                 ),
-                                const SizedBox(height: 8),
+                                const SizedBox(height: 6),
                                 TextField(
                                   controller: _emailController,
                                   focusNode: _emailFocusNode,
@@ -205,24 +185,22 @@ class _SendOtpScreenState extends State<SendOtpScreen> {
                                     hintText: 'Nhập email',
                                     labelText: 'Email',
                                     labelStyle: TextStyle(
-                                      color: _emailFocusNode.hasFocus ? Colors.orange.shade700 : Colors.grey[600],
+                                      color: _emailFocusNode.hasFocus ? Colors.orange : Colors.grey,
                                     ),
                                     prefixIcon: Icon(
                                       Icons.email,
-                                      color: _emailFocusNode.hasFocus ? Colors.orange.shade700 : Colors.grey[600],
+                                      color: _emailFocusNode.hasFocus ? Colors.orange : Colors.grey,
                                     ),
                                     enabledBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(color: Colors.grey.shade300),
+                                      borderSide: const BorderSide(color: Colors.grey),
                                     ),
                                     focusedBorder: OutlineInputBorder(
                                       borderRadius: BorderRadius.circular(12),
-                                      borderSide: BorderSide(color: Colors.orange.shade700, width: 2),
+                                      borderSide: const BorderSide(color: Colors.orange, width: 2),
                                     ),
-                                    filled: true,
-                                    fillColor: Colors.white,
                                   ),
-                                  cursorColor: Colors.orange.shade700,
+                                  cursorColor: Colors.orange, // Màu con trỏ nhập cũng cam
                                 ),
                                 const SizedBox(height: 30),
                                 SizedBox(
@@ -231,12 +209,10 @@ class _SendOtpScreenState extends State<SendOtpScreen> {
                                   child: ElevatedButton(
                                     onPressed: _isLoading ? null : _sendOtp,
                                     style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.orange.shade700,
-                                      foregroundColor: Colors.white,
+                                      backgroundColor: const Color(0xFFFF9800),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      elevation: 3,
                                     ),
                                     child: _isLoading
                                         ? const CircularProgressIndicator(color: Colors.white)
@@ -244,7 +220,7 @@ class _SendOtpScreenState extends State<SendOtpScreen> {
                                       'Lấy mã xác thực',
                                       style: TextStyle(
                                         fontSize: 16,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.bold,
                                         color: Colors.white,
                                       ),
                                     ),

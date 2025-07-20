@@ -109,25 +109,25 @@ class _WorkScheduleInfoListScreenState extends State<WorkScheduleInfoListScreen>
               return Opacity(
                 opacity: s.status == 'Normal' ? 0.5 : 1.0,
                 child: InkWell(
-                  onTap: () {
-                    if (s.name == 'Normal') {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text("Không thể truy cập ca làm 'Normal'"),
-                          duration: Duration(seconds: 2),
+                    onTap: () {
+                      if (s.name == 'Normal') {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text("Không thể truy cập ca làm 'Normal'"),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                        return;
+                      }
+
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ApproveOvertimeScreen(token: widget.token),
                         ),
                       );
-                      return;
-                    }
-
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => ApproveOvertimeScreen(token: widget.token),
-                      ),
-                    );
-                  },
-                  borderRadius: BorderRadius.circular(16),
+                    },
+                    borderRadius: BorderRadius.circular(16),
                   child: Card(
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                     elevation: 6,

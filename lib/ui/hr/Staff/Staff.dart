@@ -8,7 +8,9 @@ import '../../../Service/Constants.dart';
 import 'package:sem4_fe/ui/Hr/Staff/Narbar/StaffDetailScreen.dart';
 
 class UserResponse {
-  final String id, username, email, role, status;
+  final String userId; // Đổi tên từ id thành userId cho rõ ràng
+  final String? employeeId; // Thêm employeeId
+  final String username, email, role, status;
   final String? shift, img;
   final String? positionName;
   final String? departmentName;
@@ -19,7 +21,8 @@ class UserResponse {
   final String? hireDate;
 
   UserResponse({
-    required this.id,
+    required this.userId,
+    this.employeeId,
     required this.username,
     required this.email,
     required this.role,
@@ -36,7 +39,8 @@ class UserResponse {
   });
 
   factory UserResponse.fromJson(Map<String, dynamic> json) => UserResponse(
-    id: json['userId']?.toString() ?? 'Unknown',
+    userId: json['userId']?.toString() ?? 'Unknown',
+    employeeId: json['employeeId']?.toString(), // Lưu employeeId
     username: json['username'] ?? 'Không xác định',
     email: json['email'] ?? 'Không có email',
     role: json['role']?.toString() ?? 'Không xác định',
@@ -139,8 +143,12 @@ class _StaffScreenState extends State<StaffScreen> {
           headers: {'Authorization': 'Bearer $token'},
         );
 
-        if (employeeIdResponse.statusCode != 200) return;
+        if (employeeIdResponse.statusCode != 200) {
+          debugPrint('Lỗi lấy employeeId: ${employeeIdResponse.statusCode} - ${employeeIdResponse.body}');
+          return;
+        }
         employeeId = employeeIdResponse.body.trim();
+        debugPrint('Lấy được employeeId: $employeeId');
         await prefs.setString('employeeId', employeeId);
       }
 
@@ -151,8 +159,8 @@ class _StaffScreenState extends State<StaffScreen> {
 
       if (employeeDetailResponse.statusCode == 200) {
         final data = json.decode(employeeDetailResponse.body);
-        print('Chi tiết nhân viên: $data');
-        print('Giá trị img: ${data['img']}');
+        debugPrint('Chi tiết nhân viên: $data');
+        debugPrint('Giá trị img: ${data['img']}');
         setState(() {
           avatarUrl = data['img']?.toString();
           positionName = data['positionName']?.toString();
@@ -163,9 +171,11 @@ class _StaffScreenState extends State<StaffScreen> {
           dateOfBirth = data['dateOfBirth']?.toString();
           hireDate = data['hireDate']?.toString();
         });
+      } else {
+        debugPrint('Lỗi lấy chi tiết nhân viên: ${employeeDetailResponse.statusCode} - ${employeeDetailResponse.body}');
       }
     } catch (e) {
-      print('Lỗi fetchEmployeeAvatar: $e');
+      debugPrint('Lỗi fetchEmployeeAvatar: $e');
     }
   }
 
@@ -182,7 +192,7 @@ class _StaffScreenState extends State<StaffScreen> {
       if (response.statusCode == 200) {
         final decoded = jsonDecode(response.body);
         final roles = decoded['result'] ?? [];
-        print('Danh sách vai trò: $roles');
+        debugPrint('Danh sách vai trò: $roles');
 
         final userRole = roles.firstWhere(
               (role) => role['roleName'] == 'User',
@@ -193,10 +203,10 @@ class _StaffScreenState extends State<StaffScreen> {
           return userRole['roleId']?.toString();
         }
       } else {
-        print('Lỗi lấy danh sách vai trò: ${response.statusCode}');
+        debugPrint('Lỗi lấy danh sách vai trò: ${response.statusCode}');
       }
     } catch (e) {
-      print('Lỗi getUserRoleId: $e');
+      debugPrint('Lỗi getUserRoleId: $e');
     }
     return null;
   }
@@ -227,10 +237,12 @@ class _StaffScreenState extends State<StaffScreen> {
           );
 
           if (employeeIdResponse.statusCode != 200 || employeeIdResponse.body.trim().isEmpty) {
+            debugPrint('Lỗi lấy employeeId cho userId $userId: ${employeeIdResponse.statusCode}');
             continue;
           }
 
           final employeeId = employeeIdResponse.body.trim();
+          debugPrint('Lấy được employeeId: $employeeId cho userId: $userId');
 
           final detailResponse = await http.get(
             Uri.parse(Constants.employeeDetailUrl(employeeId)),
@@ -239,11 +251,12 @@ class _StaffScreenState extends State<StaffScreen> {
 
           if (detailResponse.statusCode == 200) {
             final detailData = jsonDecode(detailResponse.body);
-            print('Chi tiết nhân viên của quản lý nhân sự: $detailData');
-            print('Giá trị img: ${detailData['img']}');
+            debugPrint('Chi tiết nhân viên của quản lý nhân sự: $detailData');
+            debugPrint('Giá trị img: ${detailData['img']}');
 
             final user = UserResponse.fromJson({
               ...json,
+              'employeeId': employeeId, // Thêm employeeId vào JSON
               'positionName': detailData['positionName'],
               'departmentName': detailData['departmentName'],
               'gender': detailData['gender'],
@@ -254,12 +267,15 @@ class _StaffScreenState extends State<StaffScreen> {
               'img': detailData['img']?.toString(),
             });
             users.add(user);
+          } else {
+            debugPrint('Lỗi lấy chi tiết nhân viên cho employeeId $employeeId: ${detailResponse.statusCode}');
           }
         }
         return users;
       }
       throw Exception('Không thể tải danh sách người dùng: ${response.statusCode}');
     } catch (e) {
+      debugPrint('Lỗi khi lấy danh sách người dùng: $e');
       throw Exception('Lỗi khi lấy danh sách người dùng: $e');
     }
   }
@@ -286,7 +302,7 @@ class _StaffScreenState extends State<StaffScreen> {
     }
   }
 
-  void refreshUsers() async {
+  Future<void> refreshUsers() async {
     try {
       if (_userRoleId == null) {
         _userRoleId = await getUserRoleId();
@@ -307,9 +323,9 @@ class _StaffScreenState extends State<StaffScreen> {
             .toSet()
             .toList();
       });
-      print('Danh sách người dùng đã được làm mới!');
+      debugPrint('Danh sách người dùng đã được làm mới!');
     } catch (e) {
-      print('Lỗi khi làm mới người dùng: $e');
+      debugPrint('Lỗi khi làm mới người dùng: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Lỗi khi làm mới danh sách: $e')),
       );
@@ -333,7 +349,7 @@ class _StaffScreenState extends State<StaffScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey.shade100, // Nền nhẹ nhàng
+      backgroundColor: Colors.grey.shade100,
       appBar: AppBar(
         backgroundColor: colors[1],
         elevation: 0,
@@ -638,7 +654,8 @@ class _StaffScreenState extends State<StaffScreen> {
                     final user = _filteredUsers[index];
                     return StaffCard(
                       name: user.username,
-                      id: user.id,
+                      userId: user.userId, // Sử dụng userId
+                      employeeId: user.employeeId, // Truyền employeeId
                       status: user.status,
                       shift: user.shift ?? 'Không có ca',
                       image: user.img ?? 'assets/avatar.jpg',
@@ -652,7 +669,7 @@ class _StaffScreenState extends State<StaffScreen> {
                       hireDate: user.hireDate,
                       token: widget.token,
                       onDelete: (employeeId) async {
-                        await deleteEmployee(employeeId, widget.token, context);
+                        await deleteEmployee(employeeId!, widget.token, context);
                         refreshUsers();
                       },
                     );
@@ -693,7 +710,8 @@ Widget _buildTag({required String text, required Color color}) {
 }
 
 class StaffCard extends StatelessWidget {
-  final String name, id, status, shift, image;
+  final String name, userId, status, shift, image;
+  final String? employeeId; // Thêm employeeId
   final String? positionName;
   final String? departmentName;
   final String? gender;
@@ -703,12 +721,13 @@ class StaffCard extends StatelessWidget {
   final String? hireDate;
   final List<Color> colors;
   final String token;
-  final Future<void> Function(String employeeId)? onDelete;
+  final Future<void> Function(String? employeeId)? onDelete;
 
   const StaffCard({
     Key? key,
     required this.name,
-    required this.id,
+    required this.userId, // Đổi tên thành userId
+    this.employeeId,
     required this.status,
     required this.shift,
     required this.image,
@@ -736,7 +755,7 @@ class StaffCard extends StatelessWidget {
               : image;
           return MemoryImage(base64Decode(base64String));
         } catch (e) {
-          print('Lỗi giải mã hình ảnh Base64: $e');
+          debugPrint('Lỗi giải mã hình ảnh Base64: $e');
           return const AssetImage('assets/avatar.jpg');
         }
       } else {
@@ -746,11 +765,17 @@ class StaffCard extends StatelessWidget {
 
     return GestureDetector(
       onTap: () {
+        if (employeeId == null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Không tìm thấy employeeId')),
+          );
+          return;
+        }
         Navigator.push(
           context,
           MaterialPageRoute(
             builder: (_) => StaffDetailScreen(
-              employeeId: id,
+              employeeId: employeeId!, // Truyền employeeId thay vì userId
               fullName: name,
               token: token,
               status: status,
@@ -806,7 +831,7 @@ class StaffCard extends StatelessWidget {
                   backgroundColor: Colors.grey.shade200,
                   backgroundImage: getImageProvider(),
                   onBackgroundImageError: (exception, stackTrace) {
-                    print('Lỗi tải hình ảnh: $exception');
+                    debugPrint('Lỗi tải hình ảnh: $exception');
                   },
                   child: image.isEmpty
                       ? CircularProgressIndicator(
@@ -831,13 +856,22 @@ class StaffCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Mã NV: $id',
+                      'Mã NV: $userId', // Hiển thị userId
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade600,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
+                    if (employeeId != null)
+                      // Text(
+                      //   'Employee ID: $employeeId', // Hiển thị employeeId để kiểm tra
+                      //   style: TextStyle(
+                      //     fontSize: 14,
+                      //     color: Colors.grey.shade600,
+                      //     fontWeight: FontWeight.w500,
+                      //   ),
+                      // ),
                     if (positionName != null && positionName!.isNotEmpty)
                       Text(
                         'Chức vụ: $positionName',
@@ -886,13 +920,28 @@ class StaffCard extends StatelessWidget {
                     ),
                     tooltip: 'Chỉnh sửa',
                     onPressed: () async {
-                      final isEditing = id != null && id.isNotEmpty;
+                      if (employeeId == null || employeeId!.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('❌ Không tìm thấy employeeId')),
+                        );
+                        return;
+                      }
                       final result = await Navigator.push(
                         context,
                         MaterialPageRoute(
                           builder: (_) => AddEmployeeScreen(
                             token: token,
-                            employeeId: isEditing ? id : null,
+                            employeeId: employeeId,
+                            userId: userId, // Thêm userId
+                            username: name,
+                            positionName: positionName,
+                            departmentName: departmentName,
+                            gender: gender,
+                            phone: phone,
+                            address: address,
+                            dateOfBirth: dateOfBirth,
+                            hireDate: hireDate,
+                            image: image,
                           ),
                         ),
                       );
@@ -903,6 +952,8 @@ class StaffCard extends StatelessWidget {
                             backgroundColor: colors[3],
                           ),
                         );
+                        // Làm mới danh sách sau khi chỉnh sửa
+                        await (context.findAncestorStateOfType<_StaffScreenState>()?.refreshUsers());
                       }
                     },
                   ),
@@ -962,8 +1013,8 @@ class StaffCard extends StatelessWidget {
                           ],
                         ),
                       );
-                      if (confirmed == true && onDelete != null) {
-                        await onDelete!(id);
+                      if (confirmed == true && onDelete != null && employeeId != null) {
+                        await onDelete!(employeeId);
                       }
                     },
                   ),

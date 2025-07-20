@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:sem4_fe/ui/User/Individual/Navbar/WorkHistory.dart';
+import 'package:sem4_fe/ui/Hr/Staff/Narbar/EmployeeHistoryByHrScreen.dart';
 import '../../../../Service/Constants.dart';
 
 class StaffDetailScreen extends StatelessWidget {
@@ -100,10 +100,11 @@ class StaffDetailScreen extends StatelessWidget {
             const SizedBox(height: 20),
             GestureDetector(
               onTap: () {
+                print('Xem lịch sử nhân viên có ID: $employeeId');
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => WorkHistoryScreen(token: token),
+                    builder: (context) => EmployeeHistoryByHrScreen(employeeId: employeeId, token: token),
                   ),
                 );
               },
